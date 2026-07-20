@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   tabLabel: {
-    fontSize: 10,
+    fontSize: 8,
     color: Colors.textMuted,
     marginTop: 2,
     marginBottom: 5,
