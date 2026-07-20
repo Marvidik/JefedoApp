@@ -72,7 +72,7 @@ export default function CheckoutScreen() {
           ) : (
             <FlatList 
               data={data}
-              keyExtractor={item => item}
+              keyExtractor={(item, index) => `${item}-${index}`}
               renderItem={({ item }) => (
                 <TouchableOpacity style={styles.modalItem} onPress={() => { onSelect(item); onClose(); }}>
                   <Text style={styles.modalItemText}>{item}</Text>
