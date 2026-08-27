@@ -1,103 +1,89 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Colors from '../constants/Colors';
-
-const NOTIFICATIONS = [
-  {
-    id: '1',
-    type: 'order',
-    title: 'Purchase Completed!',
-    body: 'You have successfully purchased 334 headphones, thank you and wait for your package to arrive ✨',
-    time: '2 m ago',
-    read: false,
-    icon: 'cart-outline',
-    iconBg: '#e0f2fe',
-    iconColor: '#0284c7',
-  },
-  {
-    id: '2',
-    type: 'message',
-    title: 'Jerremy Send You a Message',
-    body: 'hello your package has almost arrived, are you at home now?',
-    action: 'Reply the message',
-    time: '2 m ago',
-    read: false,
-    avatar: true,
-    iconBg: '#fef3c7',
-    iconColor: '#d97706',
-  },
-  {
-    id: '3',
-    type: 'promo',
-    title: 'Flash Sale! 🔥',
-    body: 'Get 20% discount for first transaction in this month! 😍',
-    time: '2 m ago',
-    read: false,
-    icon: 'pricetag-outline',
-    iconBg: '#fce7f3',
-    iconColor: '#db2777',
-  },
-  {
-    id: '4',
-    type: 'order',
-    title: 'Package Sent',
-    body: 'Hi your package has been sent from new york',
-    time: '10 m ago',
-    read: true,
-    icon: 'cube-outline',
-    iconBg: '#f3e8ff',
-    iconColor: '#9333ea',
-  },
-];
+import { getNotifications, markNotificationRead, markAllNotificationsRead } from '../services/accountService';
+import { useRequireAuth } from '../hooks/useRequireAuth';
+import { AppNotification } from '../services/types';
 
 export default function NotificationsScreen() {
-  const [notifications, setNotifications] = useState(NOTIFICATIONS);
-  const unreadCount = notifications.filter(n => !n.read).length;
+  useRequireAuth();
+  
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
 
-  const markAllRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const res = await getNotifications();
+      setNotifications(res.results || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const markRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllNotificationsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    } catch (err) {
+      console.error(err);
+    }
   };
 
-  const renderItem = ({ item }: { item: any }) => (
-    <TouchableOpacity
-      style={[styles.notifCard, !item.read && styles.notifCardUnread]}
-      onPress={() => markRead(item.id)}
-      activeOpacity={0.8}
-    >
-      {/* Icon / Avatar */}
-      <View style={[styles.iconWrap, { backgroundColor: item.iconBg }]}>
-        {item.avatar ? (
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>J</Text>
-          </View>
-        ) : (
-          <Ionicons name={item.icon as any} size={22} color={item.iconColor} />
-        )}
-      </View>
+  const handleMarkRead = async (id: number) => {
+    try {
+      await markNotificationRead(id);
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
-      {/* Content */}
-      <View style={styles.notifContent}>
-        <Text style={[styles.notifTitle, !item.read && styles.notifTitleUnread]}>{item.title}</Text>
-        <Text style={styles.notifBody} numberOfLines={2}>{item.body}</Text>
-        {item.action && (
-          <Text style={styles.notifAction}>{item.action}</Text>
-        )}
-      </View>
+  const getIconData = (type: string) => {
+    switch(type) {
+      case 'order': return { icon: 'cube-outline', bg: '#f3e8ff', color: '#9333ea' };
+      case 'promo': return { icon: 'pricetag-outline', bg: '#fce7f3', color: '#db2777' };
+      case 'alert': return { icon: 'warning-outline', bg: '#fef3c7', color: '#d97706' };
+      default: return { icon: 'notifications-outline', bg: '#e0f2fe', color: '#0284c7' };
+    }
+  };
 
-      {/* Time + unread dot */}
-      <View style={styles.notifMeta}>
-        <Text style={styles.notifTime}>{item.time}</Text>
-        {!item.read && <View style={styles.unreadDot} />}
-      </View>
-    </TouchableOpacity>
-  );
+  const renderItem = ({ item }: { item: AppNotification }) => {
+    const { icon, bg, color } = getIconData(item.notification_type || '');
+    
+    return (
+      <TouchableOpacity
+        style={[styles.notifCard, !item.is_read && styles.notifCardUnread]}
+        onPress={() => !item.is_read && handleMarkRead(item.id)}
+        activeOpacity={0.8}
+      >
+        <View style={[styles.iconWrap, { backgroundColor: bg }]}>
+          <Ionicons name={icon as any} size={22} color={color} />
+        </View>
+
+        <View style={styles.notifContent}>
+          <Text style={[styles.notifTitle, !item.is_read && styles.notifTitleUnread]}>{item.title}</Text>
+          <Text style={styles.notifBody} numberOfLines={2}>{item.message}</Text>
+        </View>
+
+        <View style={styles.notifMeta}>
+          <Text style={styles.notifTime}>{new Date(item.created_at).toLocaleDateString()}</Text>
+          {!item.is_read && <View style={styles.unreadDot} />}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -107,11 +93,9 @@ export default function NotificationsScreen() {
           <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Notification</Text>
+          <Text style={styles.headerTitle}>Notifications</Text>
         </View>
-        <TouchableOpacity onPress={() => router.push('/') }>
-          <Ionicons name="settings-outline" size={24} color={Colors.textPrimary} />
-        </TouchableOpacity>
+        <View style={{ width: 32 }} />
       </View>
 
       {/* Unread badge + mark all read */}
@@ -120,20 +104,26 @@ export default function NotificationsScreen() {
           <View style={styles.unreadBadge}>
             <Text style={styles.unreadBadgeText}>{unreadCount} unread</Text>
           </View>
-          <TouchableOpacity onPress={markAllRead}>
+          <TouchableOpacity onPress={handleMarkAllRead}>
             <Text style={styles.markAllText}>Mark all as read</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      <FlatList
-        data={notifications}
-        keyExtractor={item => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-        ListHeaderComponent={<Text style={styles.sectionHead}>Recent</Text>}
-      />
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : (
+        <FlatList
+          data={notifications}
+          keyExtractor={item => item.id.toString()}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          ListEmptyComponent={<Text style={{ textAlign: 'center', color: Colors.textMuted, marginTop: 20 }}>No notifications.</Text>}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -149,17 +139,13 @@ const styles = StyleSheet.create({
   unreadBadgeText: { color: Colors.primary, fontSize: 12, fontWeight: 'bold' },
   markAllText: { color: Colors.primary, fontSize: 13, fontWeight: '600' },
   listContent: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 100 },
-  sectionHead: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginTop: 12, marginBottom: 8 },
   notifCard: { flexDirection: 'row', alignItems: 'flex-start', paddingVertical: 14, borderRadius: 12, paddingHorizontal: 4 },
   notifCardUnread: { backgroundColor: '#fef9f9' },
   iconWrap: { width: 46, height: 46, borderRadius: 23, justifyContent: 'center', alignItems: 'center', marginRight: 14, flexShrink: 0 },
-  avatarCircle: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#f59e0b', justifyContent: 'center', alignItems: 'center' },
-  avatarText: { color: Colors.white, fontWeight: 'bold', fontSize: 18 },
   notifContent: { flex: 1, marginRight: 8 },
   notifTitle: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary, marginBottom: 4 },
   notifTitleUnread: { fontWeight: 'bold' },
   notifBody: { fontSize: 13, color: Colors.textSecondary, lineHeight: 18 },
-  notifAction: { color: Colors.primary, fontSize: 13, fontWeight: '600', marginTop: 6 },
   notifMeta: { alignItems: 'flex-end', gap: 6 },
   notifTime: { fontSize: 11, color: Colors.textMuted },
   unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary },

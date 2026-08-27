@@ -1,55 +1,108 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Share, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Share, ActivityIndicator, Alert, Clipboard, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Colors from '../constants/Colors';
-
-const REFERRED_USERS = [
-  { id: '1', email: 'michelle.turner@icloud.com', status: 'Pending', amount: '$0' },
-  { id: '2', email: 'Arthur Arnold', status: 'Signed up', amount: '$0' },
-  { id: '3', email: 'James Hall', status: 'Cancelled', amount: '$0' },
-  { id: '4', email: 'Beverly Lopez', status: 'Completed', amount: '$5' },
-];
+import { getMyCode, getReferralHistory, getReferralStats, claimReferral } from '../services/referralService';
+import { useRequireAuth } from '../hooks/useRequireAuth';
 
 export default function ReferralScreen() {
+  useRequireAuth();
+  
   const [activeTab, setActiveTab] = useState('Refer');
-  const referralCode = 'Pferanmy';
+  const [referralCode, setReferralCode] = useState<string>('');
+  const [history, setHistory] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [claimCode, setClaimCode] = useState('');
+  const [claiming, setClaiming] = useState(false);
+
+  useEffect(() => {
+    fetchReferralData();
+  }, []);
+
+  const fetchReferralData = async () => {
+    try {
+      setLoading(true);
+      const [codeRes, histRes, statsRes] = await Promise.all([
+        getMyCode(),
+        getReferralHistory(),
+        getReferralStats()
+      ]);
+      setReferralCode(codeRes?.code || 'N/A');
+      setHistory(histRes || []);
+      setStats(statsRes);
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const referralLink = `https://jefedo.com/referral/${referralCode}`;
 
   const handleCopy = () => {
-    // Clipboard.setString(referralCode) would go here
+    Clipboard.setString(referralCode);
+    Alert.alert('Copied!', 'Referral code copied to clipboard');
   };
 
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Join me on Jefedo and get a $5 bonus! Use my code: ${referralCode} or link: ${referralLink}`,
+        message: `Join me on Jefedo! Use my code: ${referralCode} or link: ${referralLink}`,
       });
     } catch (error) {
       console.error(error);
     }
   };
 
+  const handleClaim = async () => {
+    if (!claimCode.trim()) {
+      Alert.alert('Error', 'Please enter a referral code.');
+      return;
+    }
+    setClaiming(true);
+    try {
+      await claimReferral(claimCode.trim());
+      Alert.alert('Success', 'Referral code claimed successfully!');
+      setClaimCode('');
+    } catch (err: any) {
+      Alert.alert('Error', err.detail || 'Failed to claim referral code.');
+    } finally {
+      setClaiming(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Completed': return '#16a34a';
-      case 'Pending': return '#94a3b8';
-      case 'Signed up': return '#0284c7';
-      case 'Cancelled': return '#ea580c';
+    const s = status?.toLowerCase();
+    switch (s) {
+      case 'completed': return '#16a34a';
+      case 'pending': return '#94a3b8';
+      case 'signed up': return '#0284c7';
+      case 'cancelled': return '#ea580c';
       default: return Colors.textMuted;
     }
   };
 
   const getStatusBg = (status: string) => {
-    switch (status) {
-      case 'Completed': return '#dcfce7';
-      case 'Pending': return '#f1f5f9';
-      case 'Signed up': return '#e0f2fe';
-      case 'Cancelled': return '#ffedd5';
+    const s = status?.toLowerCase();
+    switch (s) {
+      case 'completed': return '#dcfce7';
+      case 'pending': return '#f1f5f9';
+      case 'signed up': return '#e0f2fe';
+      case 'cancelled': return '#ffedd5';
       default: return '#f1f5f9';
     }
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]} edges={['top']}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -86,9 +139,30 @@ export default function ReferralScreen() {
               <Ionicons name="gift" size={100} color={Colors.primary} style={styles.giftIcon} />
             </View>
 
+            {/* Claim Referral Form */}
+            <View style={styles.claimBox}>
+              <Text style={styles.claimTitle}>Have a referral code?</Text>
+              <View style={styles.claimRow}>
+                <TextInput 
+                  style={styles.claimInput} 
+                  placeholder="Enter code" 
+                  value={claimCode} 
+                  onChangeText={setClaimCode}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity style={styles.claimBtn} onPress={handleClaim} disabled={claiming}>
+                  {claiming ? (
+                    <ActivityIndicator color={Colors.white} size="small" />
+                  ) : (
+                    <Text style={styles.claimBtnText}>Claim</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+
             <Text style={styles.title}>Share Jefedo with Friends</Text>
             <Text style={styles.subtitle}>
-              Refer a friend to Jefedo and earn $5! When they sign up and make their first purchase, you'll both get a $5 bonus.
+              Refer a friend to Jefedo and earn rewards! When they sign up and make their first purchase, you'll both get a bonus.
             </Text>
 
             {/* Code Box */}
@@ -124,24 +198,30 @@ export default function ReferralScreen() {
           <View style={styles.earnContainer}>
             <View style={styles.earnHeader}>
               <Text style={styles.earnTotalLabel}>Total Earned</Text>
-              <Text style={styles.earnTotalAmount}>$5.00</Text>
+              <Text style={styles.earnTotalAmount}>₦{Number(stats?.total_earned || 0).toLocaleString()}</Text>
+              <Text style={styles.statsLabel}>Total Referrals: {stats?.total_referrals || 0}</Text>
+              <Text style={styles.statsLabel}>Active Referrals: {stats?.active_referrals || 0}</Text>
             </View>
             
             <Text style={styles.listTitle}>Your invitations</Text>
             <View style={styles.listContainer}>
-              {REFERRED_USERS.map((user) => (
-                <View key={user.id} style={styles.listItem}>
-                  <View style={styles.listLeft}>
-                    <Text style={styles.listEmail}>{user.email}</Text>
-                    {user.amount !== '$0' && (
-                      <Text style={styles.listAmount}>Earned: {user.amount}</Text>
-                    )}
+              {history.length === 0 ? (
+                <Text style={{ textAlign: 'center', padding: 20, color: Colors.textMuted }}>No referrals yet.</Text>
+              ) : (
+                history.map((user) => (
+                  <View key={user.id} style={styles.listItem}>
+                    <View style={styles.listLeft}>
+                      <Text style={styles.listEmail}>{user.referred_user?.email || 'Unknown User'}</Text>
+                      {Number(user.reward_amount) > 0 && (
+                        <Text style={styles.listAmount}>Earned: ₦{Number(user.reward_amount).toLocaleString()}</Text>
+                      )}
+                    </View>
+                    <View style={[styles.statusBadge, { backgroundColor: getStatusBg(user.status) }]}>
+                      <Text style={[styles.statusText, { color: getStatusColor(user.status) }]}>{user.status}</Text>
+                    </View>
                   </View>
-                  <View style={[styles.statusBadge, { backgroundColor: getStatusBg(user.status) }]}>
-                    <Text style={[styles.statusText, { color: getStatusColor(user.status) }]}>{user.status}</Text>
-                  </View>
-                </View>
-              ))}
+                ))
+              )}
             </View>
           </View>
         )}
@@ -175,6 +255,13 @@ const styles = StyleSheet.create({
   copyBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fef2f2', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12 },
   copyBtnText: { color: Colors.primary, fontWeight: 'bold', marginLeft: 6 },
 
+  claimBox: { width: '100%', backgroundColor: Colors.white, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: Colors.borderLight, marginBottom: 24 },
+  claimTitle: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary, marginBottom: 12 },
+  claimRow: { flexDirection: 'row', gap: 10 },
+  claimInput: { flex: 1, height: 44, borderWidth: 1, borderColor: Colors.borderLight, borderRadius: 8, paddingHorizontal: 12 },
+  claimBtn: { backgroundColor: Colors.primary, paddingHorizontal: 20, borderRadius: 8, justifyContent: 'center', alignItems: 'center', height: 44 },
+  claimBtnText: { color: Colors.white, fontWeight: 'bold', fontSize: 14 },
+
   shareTitle: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary, marginBottom: 16 },
   shareRow: { flexDirection: 'row', justifyContent: 'center', gap: 20, width: '100%' },
   shareIconBtn: { alignItems: 'center', backgroundColor: Colors.white, paddingVertical: 16, paddingHorizontal: 20, borderRadius: 16, borderWidth: 1, borderColor: Colors.borderLight, flex: 1 },
@@ -183,7 +270,8 @@ const styles = StyleSheet.create({
   earnContainer: { width: '100%', marginTop: 10 },
   earnHeader: { backgroundColor: Colors.primary, borderRadius: 16, padding: 24, alignItems: 'center', marginBottom: 30, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 8 },
   earnTotalLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 14, marginBottom: 8 },
-  earnTotalAmount: { color: Colors.white, fontSize: 36, fontWeight: 'bold' },
+  earnTotalAmount: { color: Colors.white, fontSize: 36, fontWeight: 'bold', marginBottom: 8 },
+  statsLabel: { color: 'rgba(255,255,255,0.9)', fontSize: 12, marginBottom: 4 },
   
   listTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 16, paddingHorizontal: 4 },
   listContainer: { backgroundColor: Colors.white, borderRadius: 16, borderWidth: 1, borderColor: Colors.borderLight, overflow: 'hidden' },
@@ -192,5 +280,5 @@ const styles = StyleSheet.create({
   listEmail: { fontSize: 14, fontWeight: '500', color: Colors.textPrimary, marginBottom: 4 },
   listAmount: { fontSize: 12, color: '#16a34a', fontWeight: 'bold' },
   statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
-  statusText: { fontSize: 11, fontWeight: 'bold' },
+  statusText: { fontSize: 11, fontWeight: 'bold', textTransform: 'capitalize' },
 });

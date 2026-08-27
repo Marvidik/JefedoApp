@@ -12,6 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { router } from 'expo-router';
+import { register } from '../../services/authService';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Colors from '../../constants/Colors';
@@ -33,7 +34,7 @@ export default function RegisterScreen() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!firstName || !lastName || !email || !password || !confirmPassword) {
       Alert.alert('Missing Fields', 'Please fill all required fields.');
       return;
@@ -47,12 +48,21 @@ export default function RegisterScreen() {
       return;
     }
     setLoading(true);
-    // TODO: POST to backend  { firstName, lastName, email, phone, password }
-    setTimeout(() => {
-      setLoading(false);
-      // ── No OTP after register — go straight to login ──
+    
+    try {
+      await register({
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        phone_number: phone,
+        password,
+      });
       router.replace('/(auth)/login');
-    }, 1200);
+    } catch (err: any) {
+      Alert.alert('Registration Failed', err.detail || err.message || JSON.stringify(err) || 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

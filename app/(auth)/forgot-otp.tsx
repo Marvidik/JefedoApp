@@ -12,6 +12,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Colors from '../../constants/Colors';
+import { requestPasswordReset } from '../../services/authService';
 
 const { width } = Dimensions.get('window');
 const OTP_LENGTH = 4;
@@ -55,21 +56,21 @@ export default function ForgotOtpScreen() {
       Alert.alert('Incomplete', 'Please enter the full 4-digit code.');
       return;
     }
-    setLoading(true);
-    // TODO: POST { email, otp: code } to backend to validate reset token
-    setTimeout(() => {
-      setLoading(false);
-      router.push({ pathname: '/(auth)/reset-password', params: { email, otp: code } });
-    }, 1200);
+    router.push({ pathname: '/(auth)/reset-password', params: { email, otp: code } });
   };
 
-  const handleResend = () => {
+  const handleResend = async () => {
     if (resendTimer > 0) return;
     setResendTimer(60);
     setOtp(Array(OTP_LENGTH).fill(''));
     inputRefs.current[0]?.focus();
-    // TODO: POST { email } to backend to resend reset OTP
-    Alert.alert('Code Sent', `A new code has been sent to ${email}`);
+    
+    try {
+      await requestPasswordReset({ email });
+      Alert.alert('Code Sent', `A new code has been sent to ${email}`);
+    } catch (err: any) {
+      Alert.alert('Error', err.detail || 'Failed to resend code.');
+    }
   };
 
   return (

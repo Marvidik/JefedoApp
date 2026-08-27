@@ -1,60 +1,66 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Colors from '../constants/Colors';
-
-const ORDERS = [
-  {
-    id: 'ORD-8923-456',
-    date: 'Jul 18, 2026',
-    status: 'Delivered',
-    total: '₦45,000',
-    items: 2,
-    image: require('../assets/onboarding1.jpg'),
-  },
-  {
-    id: 'ORD-3412-887',
-    date: 'Jul 15, 2026',
-    status: 'Processing',
-    total: '₦12,500',
-    items: 1,
-    image: require('../assets/onboarding3.jpg'),
-  },
-  {
-    id: 'ORD-1192-334',
-    date: 'Jun 28, 2026',
-    status: 'Cancelled',
-    total: '₦8,000',
-    items: 1,
-    image: require('../assets/onboarding2.jpg'),
-  }
-];
+import { getMyOrders } from '../services/accountService';
+import { useRequireAuth } from '../hooks/useRequireAuth';
 
 const TABS = ['All', 'Processing', 'Delivered', 'Cancelled'];
 
 export default function OrdersScreen() {
+  useRequireAuth();
+  
   const [activeTab, setActiveTab] = useState('All');
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredOrders = ORDERS.filter(order => 
-    activeTab === 'All' ? true : order.status === activeTab
-  );
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      const res = await getMyOrders();
+      setOrders(res.results || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredOrders = orders.filter(order => {
+    if (activeTab === 'All') return true;
+    
+    // Map backend status to our tabs if necessary
+    const s = order.status?.toLowerCase() || '';
+    if (activeTab === 'Processing') return s !== 'delivered' && s !== 'cancelled';
+    if (activeTab === 'Delivered') return s === 'delivered';
+    if (activeTab === 'Cancelled') return s === 'cancelled';
+    return true;
+  });
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Delivered': return '#16a34a';
-      case 'Processing': return '#ea580c';
-      case 'Cancelled': return Colors.danger;
+    const s = status?.toLowerCase();
+    switch (s) {
+      case 'delivered': return '#16a34a';
+      case 'processing': return '#ea580c';
+      case 'pending': return '#0284c7';
+      case 'cancelled': return Colors.danger;
       default: return Colors.textSecondary;
     }
   };
 
   const getStatusBg = (status: string) => {
-    switch (status) {
-      case 'Delivered': return '#dcfce7';
-      case 'Processing': return '#ffedd5';
-      case 'Cancelled': return '#fee2e2';
+    const s = status?.toLowerCase();
+    switch (s) {
+      case 'delivered': return '#dcfce7';
+      case 'processing': return '#ffedd5';
+      case 'pending': return '#e0f2fe';
+      case 'cancelled': return '#fee2e2';
       default: return '#f1f5f9';
     }
   };
@@ -85,39 +91,56 @@ export default function OrdersScreen() {
         </ScrollView>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {filteredOrders.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="cube-outline" size={48} color={Colors.borderLight} />
-            <Text style={styles.emptyText}>No orders found.</Text>
-          </View>
-        ) : (
-          filteredOrders.map(order => (
-            <TouchableOpacity key={order.id} style={styles.orderCard} activeOpacity={0.8}>
-              <View style={styles.cardHeader}>
-                <View>
-                  <Text style={styles.orderId}>{order.id}</Text>
-                  <Text style={styles.orderDate}>{order.date}</Text>
-                </View>
-                <View style={[styles.statusBadge, { backgroundColor: getStatusBg(order.status) }]}>
-                  <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>{order.status}</Text>
-                </View>
-              </View>
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {filteredOrders.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="cube-outline" size={48} color={Colors.borderLight} />
+              <Text style={styles.emptyText}>No orders found.</Text>
+            </View>
+          ) : (
+            filteredOrders.map(order => {
+              const itemsCount = order.items?.reduce((acc: number, item: any) => acc + (item.quantity || 1), 0) || 0;
+              const imageUri = order.items?.[0]?.product?.images?.[0]?.image;
               
-              <View style={styles.divider} />
+              return (
+                <TouchableOpacity key={order.id} style={styles.orderCard} activeOpacity={0.8}>
+                  <View style={styles.cardHeader}>
+                    <View>
+                      <Text style={styles.orderId}>#{order.id.toString().padStart(5, '0')}</Text>
+                      <Text style={styles.orderDate}>{new Date(order.created_at).toLocaleDateString()}</Text>
+                    </View>
+                    <View style={[styles.statusBadge, { backgroundColor: getStatusBg(order.status) }]}>
+                      <Text style={[styles.statusText, { color: getStatusColor(order.status) }]}>{order.status || 'Pending'}</Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.divider} />
 
-              <View style={styles.cardBody}>
-                <Image source={order.image} style={styles.orderImage} />
-                <View style={styles.orderDetails}>
-                  <Text style={styles.itemCount}>{order.items} {order.items > 1 ? 'items' : 'item'}</Text>
-                  <Text style={styles.orderTotal}>Total: {order.total}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
-              </View>
-            </TouchableOpacity>
-          ))
-        )}
-      </ScrollView>
+                  <View style={styles.cardBody}>
+                    <View style={styles.orderImageContainer}>
+                      {imageUri ? (
+                        <Image source={{ uri: imageUri }} style={styles.orderImage} />
+                      ) : (
+                        <Ionicons name="cart-outline" size={30} color={Colors.textMuted} />
+                      )}
+                    </View>
+                    <View style={styles.orderDetails}>
+                      <Text style={styles.itemCount}>{itemsCount} {itemsCount > 1 ? 'items' : 'item'}</Text>
+                      <Text style={styles.orderTotal}>Total: ₦{Number(order.total_amount).toLocaleString()}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+                  </View>
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -145,12 +168,13 @@ const styles = StyleSheet.create({
   orderId: { fontSize: 15, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
   orderDate: { fontSize: 13, color: Colors.textMuted },
   statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  statusText: { fontSize: 12, fontWeight: 'bold' },
+  statusText: { fontSize: 12, fontWeight: 'bold', textTransform: 'capitalize' },
   
   divider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 16 },
   
   cardBody: { flexDirection: 'row', alignItems: 'center' },
-  orderImage: { width: 60, height: 60, borderRadius: 10, backgroundColor: '#f1f5f9' },
+  orderImageContainer: { width: 60, height: 60, borderRadius: 10, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  orderImage: { width: '100%', height: '100%' },
   orderDetails: { flex: 1, marginLeft: 16, justifyContent: 'center' },
   itemCount: { fontSize: 14, color: Colors.textSecondary, marginBottom: 4 },
   orderTotal: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary },

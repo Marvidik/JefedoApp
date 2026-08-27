@@ -13,12 +13,15 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Colors from '../../constants/Colors';
+import { verifyLoginOtp } from '../../services/authService';
+import { useAuth } from '../../context/AuthContext';
 
 const { width } = Dimensions.get('window');
 const OTP_LENGTH = 4;
 
 export default function VerifyLoginScreen() {
   const { email } = useLocalSearchParams<{ email: string }>();
+  const { refreshUser } = useAuth();
   const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
   const [loading, setLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(60);
@@ -54,7 +57,7 @@ export default function VerifyLoginScreen() {
     }
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const code = otp.join('');
     if (code.length < OTP_LENGTH) {
       Alert.alert('Incomplete', 'Please enter the full verification code.');
@@ -62,10 +65,9 @@ export default function VerifyLoginScreen() {
     }
     setLoading(true);
 
-    // TODO: POST { email, otp: code } to backend for verification
-    setTimeout(() => {
-      setLoading(false);
-      // ── Animate success state ──
+    try {
+      await verifyLoginOtp({ email, otp: Number(code) });
+      await refreshUser();
       setSuccess(true);
       Animated.spring(successScale, {
         toValue: 1,
@@ -73,9 +75,13 @@ export default function VerifyLoginScreen() {
         friction: 7,
         useNativeDriver: true,
       }).start(() => {
-        setTimeout(() => router.replace('/'), 1800);
+        setTimeout(() => router.replace('/(tabs)'), 1800);
       });
-    }, 1200);
+    } catch (err: any) {
+      Alert.alert('Verification Failed', err.detail || err.message || 'Invalid or expired code.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleResend = () => {

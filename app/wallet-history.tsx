@@ -1,21 +1,34 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Colors from '../constants/Colors';
-
-const TRANSACTIONS = [
-  { id: '1', title: 'Payment for Shoes', type: 'debit', amount: '-$120.00', date: 'Today, 10:30 AM', icon: 'cart' },
-  { id: '2', title: 'Top up wallet', type: 'credit', amount: '+$500.00', date: 'Yesterday, 02:15 PM', icon: 'wallet' },
-  { id: '3', title: 'Payment for Repairs', type: 'debit', amount: '-$50.00', date: '18 Jul, 09:00 AM', icon: 'hammer' },
-  { id: '4', title: 'Refund for Services', type: 'credit', amount: '+$30.00', date: '15 Jul, 11:20 AM', icon: 'refresh-circle' },
-  { id: '5', title: 'Payment for Cleaning', type: 'debit', amount: '-$80.00', date: '10 Jul, 04:00 PM', icon: 'color-wand' },
-  { id: '6', title: 'Top up wallet', type: 'credit', amount: '+$200.00', date: '01 Jul, 09:15 AM', icon: 'wallet' },
-  { id: '7', title: 'Payment for Snickers', type: 'debit', amount: '-$45.00', date: '28 Jun, 01:30 PM', icon: 'cart' },
-];
+import { getTransactions } from '../services/walletService';
+import { useRequireAuth } from '../hooks/useRequireAuth';
 
 export default function WalletHistoryScreen() {
+  useRequireAuth();
+  
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, []);
+
+  const fetchTransactions = async () => {
+    try {
+      setLoading(true);
+      const txs = await getTransactions();
+      setTransactions(txs);
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
@@ -27,24 +40,44 @@ export default function WalletHistoryScreen() {
         <View style={{ width: 32 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {TRANSACTIONS.map((item) => (
-          <View key={item.id} style={styles.transactionCard}>
-            <View style={styles.txLeft}>
-              <View style={styles.txIconWrap}>
-                <Ionicons name={item.icon as any} size={20} color={Colors.textSecondary} />
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {transactions.length === 0 ? (
+            <Text style={{ textAlign: 'center', color: Colors.textMuted, marginTop: 20 }}>No transactions found.</Text>
+          ) : (
+            transactions.map((item) => (
+              <View key={item.id} style={styles.transactionCard}>
+                <View style={styles.txLeft}>
+                  <View style={styles.txIconWrap}>
+                    <Ionicons name={item.transaction_type === 'credit' ? 'arrow-down' : 'arrow-up'} size={20} color={Colors.textSecondary} />
+                  </View>
+                  <View>
+                    <Text style={styles.txTitle}>{item.description || item.transaction_type}</Text>
+                    <Text style={styles.txDate}>{new Date(item.created_at).toLocaleString()}</Text>
+                  </View>
+                </View>
+                {(() => {
+                  const isPending = item.status?.toLowerCase() === 'pending';
+                  const isCredit = item.transaction_type === 'credit';
+                  const amountColor = isPending ? Colors.textMuted : (isCredit ? '#16a34a' : Colors.danger);
+                  return (
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={[styles.txAmount, { color: amountColor }]}>
+                        {isCredit ? '+' : '-'}₦{Number(item.amount).toLocaleString()}
+                      </Text>
+                      {isPending && <Text style={{ fontSize: 11, color: Colors.textMuted }}>Pending</Text>}
+                    </View>
+                  );
+                })()}
               </View>
-              <View>
-                <Text style={styles.txTitle}>{item.title}</Text>
-                <Text style={styles.txDate}>{item.date}</Text>
-              </View>
-            </View>
-            <Text style={[styles.txAmount, { color: item.type === 'credit' ? '#16a34a' : Colors.danger }]}>
-              {item.amount}
-            </Text>
-          </View>
-        ))}
-      </ScrollView>
+            ))
+          )}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }

@@ -1,38 +1,90 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View, Text, StyleSheet, ScrollView, TextInput,
-    TouchableOpacity, Modal, KeyboardAvoidingView, Platform
+    TouchableOpacity, Modal, KeyboardAvoidingView, Platform, Alert, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Colors from '../constants/Colors';
+import { getProfile, patchProfile } from '../services/accountService';
 
-const PROFILE = {
-    firstName: 'Magdalena',
-    lastName: 'Succrose',
-    email: 'magdalena83@mail.com',
-    phone: '+234 812 345 6789',
-    gender: 'Prefer not to say',
-    dob: '',
-    bio: '',
+const GENDER_MAP: Record<string, string> = {
+    'MALE': 'Male',
+    'FEMALE': 'Female',
+    'NON_BINARY': 'Non-Binary',
+    'PREFER_NOT_TO_SAY': 'Prefer not to say',
+};
+
+const GENDER_API_MAP: Record<string, 'MALE' | 'FEMALE' | 'NON_BINARY' | 'PREFER_NOT_TO_SAY'> = {
+    'Male': 'MALE',
+    'Female': 'FEMALE',
+    'Non-Binary': 'NON_BINARY',
+    'Prefer not to say': 'PREFER_NOT_TO_SAY',
 };
 
 export default function EditProfileScreen() {
-    const [profile, setProfile] = useState(PROFILE);
-    const [editForm, setEditForm] = useState(PROFILE);
+    const [profile, setProfile] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+
     const [showEditModal, setShowEditModal] = useState(false);
     const [showGenderPicker, setShowGenderPicker] = useState(false);
-    const genderOptions = ['Male', 'Female', 'Prefer not to say'];
+    const [editForm, setEditForm] = useState({
+        first_name: '', last_name: '', phone: '',
+        gender: 'Prefer not to say', date_of_birth: '', bio: '',
+    });
 
-    const handleSave = () => {
-        setProfile(editForm);
-        setShowEditModal(false);
+    const genderOptions = ['Male', 'Female', 'Non-Binary', 'Prefer not to say'];
+
+    useEffect(() => {
+        loadProfile();
+    }, []);
+
+    const loadProfile = async () => {
+        setLoading(true);
+        try {
+            const data = await getProfile();
+            setProfile(data);
+        } catch (err) {
+            Alert.alert('Error', 'Failed to load profile.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const openEdit = () => {
-        setEditForm(profile);
+        if (!profile) return;
+        setEditForm({
+            first_name: profile.first_name || '',
+            last_name: profile.last_name || '',
+            phone: profile.phone || '',
+            gender: GENDER_MAP[profile.gender || ''] || 'Prefer not to say',
+            date_of_birth: profile.date_of_birth || '',
+            bio: profile.bio || '',
+        });
         setShowEditModal(true);
+    };
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const updated = await patchProfile({
+                first_name: editForm.first_name,
+                last_name: editForm.last_name,
+                phone: editForm.phone,
+                gender: GENDER_API_MAP[editForm.gender] || 'PREFER_NOT_TO_SAY',
+                date_of_birth: editForm.date_of_birth || undefined,
+                bio: editForm.bio,
+            });
+            setProfile(updated);
+            setShowEditModal(false);
+            Alert.alert('Success', 'Profile updated successfully!');
+        } catch (err: any) {
+            Alert.alert('Error', err.detail || 'Failed to update profile.');
+        } finally {
+            setSaving(false);
+        }
     };
 
     const InfoRow = ({ icon, label, value }: any) => (
@@ -45,6 +97,16 @@ export default function EditProfileScreen() {
         </View>
     );
 
+    if (loading) {
+        return (
+            <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]} edges={['top']}>
+                <ActivityIndicator size="large" color={Colors.primary} />
+            </SafeAreaView>
+        );
+    }
+
+    const initials = `${(profile?.first_name || '?')[0]}${(profile?.last_name || '?')[0]}`.toUpperCase();
+
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
             {/* Header */}
@@ -53,9 +115,7 @@ export default function EditProfileScreen() {
                     <Ionicons name="chevron-back" size={22} color={Colors.textPrimary} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Edit Profile</Text>
-                <TouchableOpacity>
-                    <Ionicons name="ellipsis-vertical" size={20} color={Colors.textPrimary} />
-                </TouchableOpacity>
+                <View style={{ width: 30 }} />
             </View>
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -63,22 +123,34 @@ export default function EditProfileScreen() {
                 <View style={styles.avatarSection}>
                     <View style={styles.avatarWrap}>
                         <View style={styles.avatar}>
-                            <Text style={styles.avatarText}>
-                                {profile.firstName[0]}{profile.lastName[0]}
-                            </Text>
+                            <Text style={styles.avatarText}>{initials}</Text>
                         </View>
                     </View>
+                    <Text style={styles.profileName}>{profile?.first_name} {profile?.last_name}</Text>
+                    <Text style={styles.profileEmail}>{profile?.email}</Text>
                 </View>
 
                 {/* Info Display */}
                 <View style={styles.card}>
-                    <InfoRow icon="person-outline" label="Username" value={`${profile.firstName} ${profile.lastName}`} />
+                    <InfoRow icon="person-outline" label="Full Name" value={`${profile?.first_name || ''} ${profile?.last_name || ''}`} />
                     <View style={styles.divider} />
-                    <InfoRow icon="mail-outline" label="Email or Phone Number" value={profile.email} />
-                    {profile.phone ? (
+                    <InfoRow icon="mail-outline" label="Email" value={profile?.email} />
+                    {profile?.phone ? (
                         <>
                             <View style={styles.divider} />
-                            <InfoRow icon="call-outline" label="Phone" value={profile.phone} />
+                            <InfoRow icon="call-outline" label="Phone" value={profile?.phone} />
+                        </>
+                    ) : null}
+                    {profile?.gender ? (
+                        <>
+                            <View style={styles.divider} />
+                            <InfoRow icon="person-circle-outline" label="Gender" value={GENDER_MAP[profile.gender] || profile.gender} />
+                        </>
+                    ) : null}
+                    {profile?.bio ? (
+                        <>
+                            <View style={styles.divider} />
+                            <InfoRow icon="document-text-outline" label="Bio" value={profile.bio} />
                         </>
                     ) : null}
                 </View>
@@ -101,18 +173,18 @@ export default function EditProfileScreen() {
                             <View style={styles.row}>
                                 <View style={styles.halfWrap}>
                                     <Text style={styles.fieldLabel}>FIRST NAME</Text>
-                                    <TextInput style={styles.input} value={editForm.firstName} onChangeText={t => setEditForm({ ...editForm, firstName: t })} />
+                                    <TextInput style={styles.input} value={editForm.first_name} onChangeText={t => setEditForm({ ...editForm, first_name: t })} />
                                 </View>
                                 <View style={styles.halfWrap}>
                                     <Text style={styles.fieldLabel}>LAST NAME</Text>
-                                    <TextInput style={styles.input} value={editForm.lastName} onChangeText={t => setEditForm({ ...editForm, lastName: t })} />
+                                    <TextInput style={styles.input} value={editForm.last_name} onChangeText={t => setEditForm({ ...editForm, last_name: t })} />
                                 </View>
                             </View>
 
                             <View style={styles.row}>
                                 <View style={styles.halfWrap}>
                                     <Text style={styles.fieldLabel}>EMAIL (READ-ONLY)</Text>
-                                    <TextInput style={[styles.input, styles.readOnly]} value={editForm.email} editable={false} />
+                                    <TextInput style={[styles.input, styles.readOnly]} value={profile?.email} editable={false} />
                                 </View>
                                 <View style={styles.halfWrap}>
                                     <Text style={styles.fieldLabel}>PHONE</Text>
@@ -139,7 +211,7 @@ export default function EditProfileScreen() {
                                 </View>
                                 <View style={styles.halfWrap}>
                                     <Text style={styles.fieldLabel}>DATE OF BIRTH</Text>
-                                    <TextInput style={styles.input} placeholder="dd/mm/yyyy" value={editForm.dob} onChangeText={t => setEditForm({ ...editForm, dob: t })} />
+                                    <TextInput style={styles.input} placeholder="YYYY-MM-DD" placeholderTextColor={Colors.textMuted} value={editForm.date_of_birth} onChangeText={t => setEditForm({ ...editForm, date_of_birth: t })} />
                                 </View>
                             </View>
 
@@ -154,8 +226,12 @@ export default function EditProfileScreen() {
                                 placeholderTextColor={Colors.textMuted}
                             />
 
-                            <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
-                                <Text style={styles.saveBtnText}>Save Changes</Text>
+                            <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.7 }]} onPress={handleSave} disabled={saving}>
+                                {saving ? (
+                                    <ActivityIndicator color={Colors.white} />
+                                ) : (
+                                    <Text style={styles.saveBtnText}>Save Changes</Text>
+                                )}
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowEditModal(false)}>
                                 <Text style={styles.cancelBtnText}>Cancel</Text>
@@ -176,21 +252,18 @@ const styles = StyleSheet.create({
     headerTitle: { fontSize: 17, fontWeight: 'bold', color: Colors.textPrimary },
     scrollContent: { padding: 20, paddingBottom: 40 },
     avatarSection: { alignItems: 'center', marginBottom: 28 },
-    avatarWrap: { position: 'relative' },
+    avatarWrap: { position: 'relative', marginBottom: 12 },
     avatar: { width: 90, height: 90, borderRadius: 45, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center' },
     avatarText: { color: Colors.white, fontSize: 32, fontWeight: 'bold' },
-    avatarEditBtn: { position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.textPrimary, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: Colors.white },
+    profileName: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 4 },
+    profileEmail: { fontSize: 13, color: Colors.textMuted },
     card: { backgroundColor: Colors.white, borderRadius: 16, padding: 20, marginBottom: 24, borderWidth: 1, borderColor: Colors.borderLight },
     infoBlock: { paddingVertical: 8 },
-    infoLabel: { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 8 },
+    infoLabel: { fontSize: 11, fontWeight: 'bold', color: '#94a3b8', marginBottom: 6, letterSpacing: 0.3 },
     infoValueRow: { flexDirection: 'row', alignItems: 'center' },
-    infoValue: { fontSize: 15, color: Colors.textSecondary },
+    infoValue: { fontSize: 15, color: Colors.textPrimary, flex: 1 },
     divider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 4 },
-    linkedRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    googleBadge: { flexDirection: 'row', alignItems: 'center' },
-    googleG: { fontSize: 18, fontWeight: 'bold', color: '#EA4335', marginRight: 10 },
-    googleLabel: { fontSize: 15, color: Colors.textPrimary },
-    saveBtn: { backgroundColor: Colors.primary, height: 52, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
+    saveBtn: { backgroundColor: Colors.primary, height: 52, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
     saveBtnText: { color: Colors.white, fontSize: 16, fontWeight: 'bold' },
     // Modal
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
@@ -207,6 +280,6 @@ const styles = StyleSheet.create({
     dropdown: { position: 'absolute', top: 68, left: 0, right: 0, backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.borderLight, borderRadius: 8, zIndex: 100, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 5 },
     dropdownItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
     bioInput: { height: 100, marginBottom: 20, paddingTop: 12 },
-    cancelBtn: { backgroundColor: Colors.surface2, height: 52, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginTop: 12, borderWidth: 1, borderColor: Colors.borderLight },
+    cancelBtn: { backgroundColor: '#f1f5f9', height: 52, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginTop: 4, borderWidth: 1, borderColor: Colors.borderLight },
     cancelBtnText: { color: Colors.textPrimary, fontSize: 16, fontWeight: '600' },
 });

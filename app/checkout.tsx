@@ -1,23 +1,62 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Image, Alert, Modal, FlatList, ActivityIndicator } from 'react-native';
+import {
+  View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
+  Alert, Modal, FlatList, ActivityIndicator,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Colors from '../constants/Colors';
+import { useCart } from '../context/CartContext';
+import { useRequireAuth } from '../lib/useRequireAuth';
+import { useAuth } from '../context/AuthContext';
+import { getAddresses } from '../services/accountService';
 
 export default function CheckoutScreen() {
+  const isLoggedIn = useRequireAuth();
+  const { user } = useAuth();
+  const { cartItems, cartTotal } = useCart();
+
   const [formData, setFormData] = useState({
     firstName: '', lastName: '', email: '', phone: '',
     street: '', city: '', state: '', zip: '', country: 'Nigeria',
   });
 
+  // Auto-fill from logged-in user and default address
+  useEffect(() => {
+    if (user) {
+      setFormData(prev => ({
+        ...prev,
+        firstName: user.first_name || prev.firstName,
+        lastName: user.last_name || prev.lastName,
+        email: user.email || prev.email,
+        phone: user.phone_number || prev.phone,
+      }));
+      
+      getAddresses().then(addresses => {
+        const defaultAddress = addresses.find((a: any) => a.is_default) || addresses[0];
+        if (defaultAddress) {
+          setFormData(prev => ({
+            ...prev,
+            street: defaultAddress.street_address || prev.street,
+            city: defaultAddress.city || prev.city,
+            state: defaultAddress.state || prev.state,
+            zip: defaultAddress.postal_code || prev.zip,
+            country: defaultAddress.country || prev.country,
+          }));
+        }
+      }).catch(console.error);
+    }
+  }, [user]);
+
+  const [paymentMethod, setPaymentMethod] = useState<'paystack' | 'wallet'>('paystack');
+  const [coupon, setCoupon] = useState('');
+
   const [countries, setCountries] = useState<string[]>([]);
   const [states, setStates] = useState<string[]>([]);
   const [loadingLocations, setLoadingLocations] = useState(false);
-  
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [showStatePicker, setShowStatePicker] = useState(false);
-
   const [countriesData, setCountriesData] = useState<any[]>([]);
 
   useEffect(() => {
@@ -27,36 +66,54 @@ export default function CheckoutScreen() {
       .then(data => {
         if (!data.error) {
           setCountriesData(data.data);
-          const countryNames = data.data.map((c: any) => c.name);
-          setCountries(countryNames);
+          setCountries(data.data.map((c: any) => c.name));
         }
         setLoadingLocations(false);
       })
-      .catch(err => {
-        console.error(err);
+      .catch(() => {
         setLoadingLocations(false);
         setCountries(['Nigeria', 'United States', 'United Kingdom']);
       });
   }, []);
 
   useEffect(() => {
-    const selectedCountryData = countriesData.find(c => c.name === formData.country);
-    if (selectedCountryData && selectedCountryData.states) {
-      setStates(selectedCountryData.states.map((s: any) => s.name));
+    const selected = countriesData.find(c => c.name === formData.country);
+    if (selected?.states) {
+      setStates(selected.states.map((s: any) => s.name));
     } else {
       setStates([]);
     }
-    setFormData(prev => ({ ...prev, state: '' })); // Reset state when country changes
+    setFormData(prev => ({ ...prev, state: '' }));
   }, [formData.country, countriesData]);
 
-  const handleCheckout = () => {
-    if (!formData.firstName || !formData.email || !formData.street || !formData.country) {
-      Alert.alert('Error', 'Please fill all required shipping information.');
+  const handleProceed = () => {
+    if (!formData.firstName || !formData.email || !formData.street || !formData.country || !formData.city) {
+      Alert.alert('Error', 'Please fill all required shipping fields.');
+      return;
+    }
+    if (cartItems.length === 0) {
+      Alert.alert('Empty cart', 'Please add items to your cart first.');
       return;
     }
 
-    // Proceed to Review Order step
-    router.push('/review-order');
+    const checkoutData = {
+      buyer_name: `${formData.firstName} ${formData.lastName}`.trim(),
+      buyer_email: formData.email,
+      buyer_phone: formData.phone,
+      address: formData.street,
+      city: formData.city,
+      state: formData.state,
+      country: formData.country,
+      postal_code: formData.zip,
+      coupon_code: coupon,
+      payment_method: paymentMethod,
+      items: cartItems.map(i => ({ item_id: i.id, quantity: i.qty }))
+    };
+
+    router.push({
+      pathname: '/review-order',
+      params: { checkoutData: JSON.stringify(checkoutData) }
+    });
   };
 
   const PickerModal = ({ visible, onClose, data, onSelect, title }: any) => (
@@ -68,11 +125,11 @@ export default function CheckoutScreen() {
             <TouchableOpacity onPress={onClose}><Ionicons name="close" size={24} color={Colors.textPrimary} /></TouchableOpacity>
           </View>
           {data.length === 0 ? (
-             <View style={{ padding: 20 }}><ActivityIndicator color={Colors.primary} /></View>
+            <View style={{ padding: 20 }}><ActivityIndicator color={Colors.primary} /></View>
           ) : (
-            <FlatList 
+            <FlatList
               data={data}
-              keyExtractor={(item, index) => `${item}-${index}`}
+              keyExtractor={(item, i) => `${item}-${i}`}
               renderItem={({ item }) => (
                 <TouchableOpacity style={styles.modalItem} onPress={() => { onSelect(item); onClose(); }}>
                   <Text style={styles.modalItemText}>{item}</Text>
@@ -85,9 +142,10 @@ export default function CheckoutScreen() {
     </Modal>
   );
 
+  if (!isLoggedIn) return null;
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
@@ -97,7 +155,7 @@ export default function CheckoutScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        
+
         {/* Progress Steps */}
         <View style={styles.progressRow}>
           <View style={styles.step}>
@@ -111,7 +169,7 @@ export default function CheckoutScreen() {
             <View style={styles.stepCircle}>
               <Text style={styles.inactiveStepText}>2</Text>
             </View>
-            <Text style={styles.inactiveStepLabel}>Review order</Text>
+            <Text style={styles.inactiveStepLabel}>Review Order</Text>
           </View>
         </View>
 
@@ -123,32 +181,32 @@ export default function CheckoutScreen() {
           <View style={styles.row}>
             <View style={styles.inputWrapHalf}>
               <Text style={styles.label}>First Name *</Text>
-              <TextInput style={styles.input} value={formData.firstName} onChangeText={(t) => setFormData({...formData, firstName: t})} />
+              <TextInput style={styles.input} value={formData.firstName} onChangeText={t => setFormData({ ...formData, firstName: t })} />
             </View>
             <View style={styles.inputWrapHalf}>
-              <Text style={styles.label}>Last Name *</Text>
-              <TextInput style={styles.input} value={formData.lastName} onChangeText={(t) => setFormData({...formData, lastName: t})} />
+              <Text style={styles.label}>Last Name</Text>
+              <TextInput style={styles.input} value={formData.lastName} onChangeText={t => setFormData({ ...formData, lastName: t })} />
             </View>
           </View>
 
           <View style={styles.row}>
             <View style={styles.inputWrapHalf}>
-              <Text style={styles.label}>Email Address *</Text>
-              <TextInput style={styles.input} keyboardType="email-address" value={formData.email} onChangeText={(t) => setFormData({...formData, email: t})} />
+              <Text style={styles.label}>Email *</Text>
+              <TextInput style={styles.input} keyboardType="email-address" value={formData.email} onChangeText={t => setFormData({ ...formData, email: t })} />
             </View>
             <View style={styles.inputWrapHalf}>
-              <Text style={styles.label}>Phone Number *</Text>
-              <TextInput style={styles.input} keyboardType="phone-pad" value={formData.phone} onChangeText={(t) => setFormData({...formData, phone: t})} />
+              <Text style={styles.label}>Phone</Text>
+              <TextInput style={styles.input} keyboardType="phone-pad" value={formData.phone} onChangeText={t => setFormData({ ...formData, phone: t })} />
             </View>
           </View>
 
           <Text style={styles.label}>Street Address *</Text>
-          <TextInput style={styles.input} value={formData.street} onChangeText={(t) => setFormData({...formData, street: t})} />
+          <TextInput style={styles.input} value={formData.street} onChangeText={t => setFormData({ ...formData, street: t })} />
 
           <View style={styles.row}>
             <View style={styles.inputWrapThird}>
               <Text style={styles.label}>City *</Text>
-              <TextInput style={styles.input} value={formData.city} onChangeText={(t) => setFormData({...formData, city: t})} />
+              <TextInput style={styles.input} value={formData.city} onChangeText={t => setFormData({ ...formData, city: t })} />
             </View>
             <View style={styles.inputWrapThird}>
               <Text style={styles.label}>State</Text>
@@ -158,61 +216,88 @@ export default function CheckoutScreen() {
               </TouchableOpacity>
             </View>
             <View style={styles.inputWrapThird}>
-              <Text style={styles.label}>ZIP *</Text>
-              <TextInput style={styles.input} value={formData.zip} onChangeText={(t) => setFormData({...formData, zip: t})} />
+              <Text style={styles.label}>ZIP</Text>
+              <TextInput style={styles.input} value={formData.zip} onChangeText={t => setFormData({ ...formData, zip: t })} />
             </View>
           </View>
-          
+
           <Text style={styles.label}>Country *</Text>
           <TouchableOpacity style={[styles.input, styles.pickerInput]} onPress={() => setShowCountryPicker(true)}>
             <Text style={{ color: formData.country ? Colors.textPrimary : Colors.textMuted }}>{formData.country || 'Select Country'}</Text>
             <Ionicons name="chevron-down" size={16} color={Colors.textMuted} />
           </TouchableOpacity>
-          
-          <View style={styles.checkboxRow}>
-            <View style={styles.checkboxWrapper}>
-              <View style={styles.checkboxChecked}>
-                <Ionicons name="checkmark" size={14} color={Colors.white} />
+        </View>
+
+        {/* Payment Method */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Payment Method</Text>
+          <Text style={styles.cardSub}>Choose how you'd like to pay.</Text>
+
+          <TouchableOpacity style={[styles.paymentOption, paymentMethod === 'paystack' && styles.paymentOptionActive]} onPress={() => setPaymentMethod('paystack')}>
+            <View style={styles.paymentOptionLeft}>
+              <View style={[styles.radio, paymentMethod === 'paystack' && styles.radioActive]}>
+                {paymentMethod === 'paystack' && <View style={styles.radioDot} />}
+              </View>
+              <View>
+                <Text style={styles.paymentOptionTitle}>💳 Pay with Paystack</Text>
+                <Text style={styles.paymentOptionDesc}>Card, Bank Transfer, USSD & more</Text>
               </View>
             </View>
-            <Text style={styles.checkboxLabel}>Save this address for future orders</Text>
-          </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.paymentOption, paymentMethod === 'wallet' && styles.paymentOptionActive]} onPress={() => setPaymentMethod('wallet')}>
+            <View style={styles.paymentOptionLeft}>
+              <View style={[styles.radio, paymentMethod === 'wallet' && styles.radioActive]}>
+                {paymentMethod === 'wallet' && <View style={styles.radioDot} />}
+              </View>
+              <View>
+                <Text style={styles.paymentOptionTitle}>👛 Pay with Wallet</Text>
+                <Text style={styles.paymentOptionDesc}>Use your Jefedo wallet balance</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Order Summary */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Your Order</Text>
-          
-          <View style={styles.orderItem}>
-            <Image source={require('../assets/onboarding3.jpg')} style={styles.orderItemImage} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.orderItemName} numberOfLines={2}>High Quality TCP Home Smoke Light</Text>
-              <Text style={styles.orderItemBrand}>JEFEDO</Text>
+          <Text style={styles.cardTitle}>Your Order ({cartItems.length} items)</Text>
+
+          {cartItems.map(item => (
+            <View key={item.id} style={styles.orderItem}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.orderItemName} numberOfLines={2}>{item.name}</Text>
+                <Text style={styles.orderItemQty}>Qty: {item.qty}</Text>
+              </View>
+              <Text style={styles.orderItemPrice}>₦{(item.price * item.qty).toLocaleString()}</Text>
             </View>
-            <Text style={styles.orderItemPrice}>₦20,000</Text>
-          </View>
+          ))}
 
           <View style={styles.promoWrap}>
-            <TextInput style={styles.promoInput} placeholder="Coupon code" />
-            <TouchableOpacity style={styles.applyBtn}>
+            <TextInput style={styles.promoInput} placeholder="Coupon code" value={coupon} onChangeText={setCoupon} />
+            <TouchableOpacity 
+              style={styles.applyBtn}
+              onPress={() => {
+                if (coupon.trim()) {
+                  Alert.alert('Coupon Applied', 'Discount will be applied at final checkout review.');
+                }
+              }}
+            >
               <Text style={styles.applyText}>Apply</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Subtotal</Text>
-            <Text style={styles.summaryValue}>₦20,000</Text>
+            <Text style={styles.summaryValue}>₦{cartTotal.toLocaleString()}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Shipping/Service Fee</Text>
             <Text style={styles.summaryValue}>Calculated by seller</Text>
           </View>
-
           <View style={styles.divider} />
-          
           <View style={styles.summaryRow}>
             <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>₦20,000</Text>
+            <Text style={styles.totalValue}>₦{cartTotal.toLocaleString()}</Text>
           </View>
 
           <View style={styles.secureBox}>
@@ -223,30 +308,30 @@ export default function CheckoutScreen() {
             <View style={styles.paymentMethods}>
               <Text style={styles.payMethod}>💳 Cards</Text>
               <Text style={styles.payMethod}>🏦 Bank Transfer</Text>
-              <Text style={styles.payMethod}>📱 Mobile Money</Text>
+              <Text style={styles.payMethod}>📱 USSD</Text>
             </View>
           </View>
         </View>
-        
-        <TouchableOpacity style={styles.checkoutBtn} onPress={handleCheckout}>
+
+        <TouchableOpacity style={styles.checkoutBtn} onPress={handleProceed}>
           <Text style={styles.checkoutBtnText}>Review Order →</Text>
         </TouchableOpacity>
 
       </ScrollView>
 
-      <PickerModal 
-        visible={showCountryPicker} 
-        onClose={() => setShowCountryPicker(false)} 
-        title="Select Country" 
-        data={countries} 
-        onSelect={(val: string) => setFormData({...formData, country: val})} 
+      <PickerModal
+        visible={showCountryPicker}
+        onClose={() => setShowCountryPicker(false)}
+        title="Select Country"
+        data={countries}
+        onSelect={(val: string) => setFormData({ ...formData, country: val })}
       />
-      <PickerModal 
-        visible={showStatePicker} 
-        onClose={() => setShowStatePicker(false)} 
-        title="Select State" 
-        data={states} 
-        onSelect={(val: string) => setFormData({...formData, state: val})} 
+      <PickerModal
+        visible={showStatePicker}
+        onClose={() => setShowStatePicker(false)}
+        title="Select State"
+        data={states}
+        onSelect={(val: string) => setFormData({ ...formData, state: val })}
       />
     </SafeAreaView>
   );
@@ -276,14 +361,19 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, color: Colors.textPrimary, fontWeight: '600', marginBottom: 8 },
   input: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.borderLight, borderRadius: 8, height: 44, paddingHorizontal: 12, color: Colors.textPrimary, marginBottom: 16 },
   pickerInput: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  checkboxRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8 },
-  checkboxWrapper: { marginRight: 10 },
-  checkboxChecked: { width: 20, height: 20, borderRadius: 4, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center' },
-  checkboxLabel: { fontSize: 13, color: Colors.textPrimary },
-  orderItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 24 },
-  orderItemImage: { width: 50, height: 50, borderRadius: 8, marginRight: 12 },
+  // Payment methods
+  paymentOption: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderRadius: 12, borderWidth: 1.5, borderColor: Colors.borderLight, marginBottom: 12 },
+  paymentOptionActive: { borderColor: Colors.primary, backgroundColor: '#f0f7ff' },
+  paymentOptionLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  paymentOptionTitle: { fontSize: 14, fontWeight: 'bold', color: Colors.textPrimary },
+  paymentOptionDesc: { fontSize: 12, color: Colors.textMuted },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: Colors.borderLight, justifyContent: 'center', alignItems: 'center' },
+  radioActive: { borderColor: Colors.primary },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary },
+  // Order summary
+  orderItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   orderItemName: { fontSize: 14, color: Colors.textPrimary, fontWeight: '600' },
-  orderItemBrand: { fontSize: 12, color: Colors.textMuted },
+  orderItemQty: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
   orderItemPrice: { fontSize: 15, fontWeight: 'bold', color: Colors.primary, marginLeft: 12 },
   promoWrap: { flexDirection: 'row', marginBottom: 20, borderBottomWidth: 1, borderBottomColor: Colors.borderLight, paddingBottom: 20, borderStyle: 'dashed' },
   promoInput: { flex: 1, borderWidth: 1, borderColor: Colors.borderLight, borderTopLeftRadius: 8, borderBottomLeftRadius: 8, paddingHorizontal: 12, height: 44 },
@@ -300,8 +390,8 @@ const styles = StyleSheet.create({
   secureText: { fontSize: 12, color: Colors.textMuted },
   paymentMethods: { flexDirection: 'row', justifyContent: 'center', gap: 16 },
   payMethod: { fontSize: 12, fontWeight: 'bold', color: Colors.textPrimary },
-  checkoutBtn: { backgroundColor: '#e2e8f0', height: 50, borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginTop: 8, marginBottom: 30 },
-  checkoutBtnText: { color: Colors.textPrimary, fontSize: 16, fontWeight: 'bold' },
+  checkoutBtn: { backgroundColor: Colors.primary, height: 50, borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginTop: 8, marginBottom: 30 },
+  checkoutBtnText: { color: Colors.white, fontSize: 16, fontWeight: 'bold' },
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { backgroundColor: Colors.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '60%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },

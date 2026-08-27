@@ -1,20 +1,31 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Colors from '../../constants/Colors';
+import { logout } from '../../services/authService';
+import { useAuth } from '../../context/AuthContext';
 
 export default function ProfileScreen() {
-  const [isLoggedIn, setIsLoggedIn] = useState(true);
+  const { isLoggedIn, user, setIsLoggedIn, setUser } = useAuth();
 
-  const handleAuthAction = () => {
+  const handleAuthAction = async () => {
     if (isLoggedIn) {
       Alert.alert('Logout', 'Are you sure you want to log out?', [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', style: 'destructive', onPress: () => {
-          setIsLoggedIn(false);
-        }},
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await logout();
+            } catch {}
+            setIsLoggedIn(false);
+            setUser(null);
+            router.replace('/(auth)/login');
+          },
+        },
       ]);
     } else {
       router.push('/(auth)/login');
@@ -39,6 +50,14 @@ export default function ProfileScreen() {
     </TouchableOpacity>
   );
 
+  const requireLogin = (screen: string) => {
+    if (!isLoggedIn) {
+      router.push('/(auth)/login');
+      return;
+    }
+    router.push(screen as any);
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -46,28 +65,48 @@ export default function ProfileScreen() {
           <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Settings</Text>
-        <TouchableOpacity style={styles.iconBtn}>
-          <Ionicons name="ellipsis-vertical" size={20} color={Colors.textPrimary} />
-        </TouchableOpacity>
+        <View style={{ width: 32 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
+
+        {/* User Card */}
+        {isLoggedIn && user && (
+          <View style={styles.userCard}>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarText}>
+                {(user.first_name?.[0] || user.email?.[0] || 'J').toUpperCase()}
+              </Text>
+            </View>
+            <View style={{ marginLeft: 14 }}>
+              <Text style={styles.userName}>{user.first_name} {user.last_name}</Text>
+              <Text style={styles.userEmail}>{user.email}</Text>
+            </View>
+          </View>
+        )}
+
+        {!isLoggedIn && (
+          <TouchableOpacity style={styles.loginBanner} onPress={() => router.push('/(auth)/login')}>
+            <Text style={styles.loginBannerText}>👋 Sign in to access your account</Text>
+            <Ionicons name="chevron-forward" size={18} color={Colors.primary} />
+          </TouchableOpacity>
+        )}
+
         <Text style={styles.sectionTitle}>General</Text>
         <View style={styles.sectionContainer}>
-          <MenuItem icon="person-outline" title="Edit Profile" onPress={() => router.push('/edit-profile')} />
+          <MenuItem icon="person-outline" title="Edit Profile" onPress={() => requireLogin('/edit-profile')} />
           <View style={styles.divider} />
-          <MenuItem icon="cube-outline" title="Orders" onPress={() => router.push('/orders')} />
+          <MenuItem icon="cube-outline" title="Orders" onPress={() => requireLogin('/orders')} />
           <View style={styles.divider} />
-          <MenuItem icon="location-outline" title="Addresses" onPress={() => router.push('/addresses')} />
+          <MenuItem icon="location-outline" title="Addresses" onPress={() => requireLogin('/addresses')} />
           <View style={styles.divider} />
-          <MenuItem icon="wallet-outline" title="Wallet" onPress={() => router.push('/wallet')} />
+          <MenuItem icon="wallet-outline" title="Wallet" onPress={() => requireLogin('/wallet')} />
           <View style={styles.divider} />
-          <MenuItem icon="gift-outline" title="Referral" onPress={() => router.push('/referral')} />
+          <MenuItem icon="gift-outline" title="Referral" onPress={() => requireLogin('/referral')} />
           <View style={styles.divider} />
-          <MenuItem icon="shield-checkmark-outline" title="Security" onPress={() => router.push('/security')} />
+          <MenuItem icon="shield-checkmark-outline" title="Security" onPress={() => requireLogin('/security')} />
           <View style={styles.divider} />
-          <MenuItem icon="notifications-outline" title="Notifications" badge={3} onPress={() => router.push('/notifications')} />
+          <MenuItem icon="notifications-outline" title="Notifications" onPress={() => requireLogin('/notifications')} />
         </View>
 
         <Text style={styles.sectionTitle}>Preferences</Text>
@@ -78,9 +117,9 @@ export default function ProfileScreen() {
         </View>
 
         <View style={[styles.sectionContainer, { marginTop: 10 }]}>
-          <MenuItem 
-            icon={isLoggedIn ? "log-out-outline" : "log-in-outline"} 
-            title={isLoggedIn ? "Logout" : "Login"} 
+          <MenuItem
+            icon={isLoggedIn ? 'log-out-outline' : 'log-in-outline'}
+            title={isLoggedIn ? 'Logout' : 'Login'}
             isDestructive={isLoggedIn}
             onPress={handleAuthAction}
           />
@@ -96,9 +135,15 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
   backBtn: { padding: 4 },
-  iconBtn: { padding: 4 },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
   scrollContent: { padding: 20 },
+  userCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, borderRadius: 16, padding: 20, marginBottom: 20, borderWidth: 1, borderColor: Colors.borderLight },
+  avatarCircle: { width: 54, height: 54, borderRadius: 27, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center' },
+  avatarText: { color: Colors.white, fontSize: 22, fontWeight: 'bold' },
+  userName: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary },
+  userEmail: { fontSize: 13, color: Colors.textMuted, marginTop: 2 },
+  loginBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.white, borderRadius: 16, padding: 18, marginBottom: 20, borderWidth: 1, borderColor: Colors.borderLight },
+  loginBannerText: { fontSize: 15, color: Colors.primary, fontWeight: '600' },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', color: Colors.textPrimary, marginBottom: 12, marginTop: 10 },
   sectionContainer: { backgroundColor: Colors.white, borderRadius: 16, overflow: 'hidden', marginBottom: 20, borderWidth: 1, borderColor: Colors.borderLight },
   menuItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, paddingHorizontal: 16 },

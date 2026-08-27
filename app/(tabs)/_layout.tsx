@@ -2,13 +2,17 @@ import { Tabs } from 'expo-router';
 import { View, StyleSheet, Platform, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../../constants/Colors';
+import { useCart } from '../../context/CartContext';
 
 export default function TabLayout() {
+  const { cartItems } = useCart();
+  const cartCount = cartItems.reduce((sum, item) => sum + item.qty, 0);
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarShowLabel: false, // We will use custom labels inside the icon
+        tabBarShowLabel: false,
         tabBarStyle: styles.tabBar,
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.textMuted,
@@ -49,8 +53,13 @@ export default function TabLayout() {
           title: 'Cart',
           tabBarIcon: ({ color, focused }) => (
             <View style={styles.tabItem}>
-              <View style={focused ? styles.activeIconContainer : styles.inactiveIconContainer}>
+              <View style={[focused ? styles.activeIconContainer : styles.inactiveIconContainer, { position: 'relative' }]}>
                 <Ionicons name={focused ? 'cart' : 'cart-outline'} size={22} color={focused ? Colors.white : color} />
+                {cartCount > 0 && !focused && (
+                  <View style={styles.notifBadge}>
+                    <Text style={styles.notifBadgeText}>{cartCount > 99 ? '99+' : cartCount}</Text>
+                  </View>
+                )}
               </View>
               <Text style={[styles.tabLabel, focused && styles.activeTabLabel]}>Cart</Text>
             </View>
@@ -65,11 +74,6 @@ export default function TabLayout() {
             <View style={styles.tabItem}>
               <View style={[focused ? styles.activeIconContainer : styles.inactiveIconContainer, { position: 'relative' }]}>
                 <Ionicons name={focused ? 'person' : 'person-outline'} size={22} color={focused ? Colors.white : color} />
-                {!focused && (
-                  <View style={styles.notifBadge}>
-                    <Text style={styles.notifBadgeText}>3</Text>
-                  </View>
-                )}
               </View>
               <Text style={[styles.tabLabel, focused && styles.activeTabLabel]}>Me</Text>
             </View>
@@ -111,7 +115,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   activeIconContainer: {
-    backgroundColor: Colors.primary, // Using red from company color
+    backgroundColor: Colors.primary,
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -142,13 +146,14 @@ const styles = StyleSheet.create({
     top: -4,
     right: -4,
     backgroundColor: Colors.primary,
-    width: 16,
+    minWidth: 16,
     height: 16,
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1.5,
     borderColor: Colors.white,
+    paddingHorizontal: 2,
   },
   notifBadgeText: {
     color: Colors.white,

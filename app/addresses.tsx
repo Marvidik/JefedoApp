@@ -8,41 +8,66 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Colors from '../constants/Colors';
 
-const MOCK_ADDRESSES = [
-  { id: '1', label: 'Home', fullName: 'Magdalena Succrose', street: '45 Adeola Odeku Street', city: 'Lagos', state: 'Lagos', country: 'Nigeria', postalCode: '101241', phone: '+234 812 345 6789', isDefault: true },
-  { id: '2', label: 'Office', fullName: 'Magdalena Succrose', street: '12 Abuja Road', city: 'Abuja', state: 'Abuja', country: 'Nigeria', postalCode: '900001', phone: '+234 812 345 6789', isDefault: false },
-];
+import { getAddresses, createAddress, deleteAddress, setDefaultAddress } from '../services/accountService';
 
 export default function AddressesScreen() {
-  const [addresses, setAddresses] = useState(MOCK_ADDRESSES);
+  const [addresses, setAddresses] = useState<any[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newAddress, setNewAddress] = useState({ label: '', fullName: '', street: '', phone: '', city: '', state: '', country: 'Nigeria', postalCode: '' });
+  const [newAddress, setNewAddress] = useState({ label: '', full_name: '', street_address: '', phone: '', city: '', state: '', country: 'Nigeria', postal_code: '' });
   const [isDefault, setIsDefault] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const makeDefault = (id: string) => {
-    setAddresses(prev => prev.map(a => ({ ...a, isDefault: a.id === id })));
+  const loadAddresses = () => {
+    setLoading(true);
+    getAddresses()
+      .then(setAddresses)
+      .catch(err => console.error(err))
+      .finally(() => setLoading(false));
   };
 
-  const removeAddress = (id: string) => {
+  React.useEffect(() => {
+    loadAddresses();
+  }, []);
+
+  const makeDefault = async (id: number) => {
+    try {
+      await setDefaultAddress(id);
+      loadAddresses();
+    } catch (err) {
+      Alert.alert('Error', 'Failed to set default address');
+    }
+  };
+
+  const removeAddress = (id: number) => {
     Alert.alert('Remove Address', 'Are you sure you want to remove this address?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => setAddresses(prev => prev.filter(a => a.id !== id)) }
+      { text: 'Remove', style: 'destructive', onPress: async () => {
+          try {
+            await deleteAddress(id);
+            loadAddresses();
+          } catch (err) {
+            Alert.alert('Error', 'Failed to delete address');
+          }
+      } }
     ]);
   };
 
-  const addAddress = () => {
-    if (!newAddress.fullName || !newAddress.street || !newAddress.city) {
+  const addAddress = async () => {
+    if (!newAddress.full_name || !newAddress.street_address || !newAddress.city) {
       Alert.alert('Error', 'Please fill required fields.'); return;
     }
-    const created = { ...newAddress, id: Date.now().toString(), isDefault: isDefault };
-    if (isDefault) {
-      setAddresses(prev => [...prev.map(a => ({ ...a, isDefault: false })), created]);
-    } else {
-      setAddresses(prev => [...prev, created]);
+    try {
+      await createAddress({
+        ...newAddress,
+        is_default: isDefault
+      });
+      setNewAddress({ label: '', full_name: '', street_address: '', phone: '', city: '', state: '', country: 'Nigeria', postal_code: '' });
+      setIsDefault(false);
+      setShowAddModal(false);
+      loadAddresses();
+    } catch (err) {
+      Alert.alert('Error', 'Failed to create address');
     }
-    setNewAddress({ label: '', fullName: '', street: '', phone: '', city: '', state: '', country: 'Nigeria', postalCode: '' });
-    setIsDefault(false);
-    setShowAddModal(false);
   };
 
   return (
@@ -65,12 +90,12 @@ export default function AddressesScreen() {
         )}
 
         {addresses.map(addr => (
-          <View key={addr.id} style={[styles.addressCard, addr.isDefault && styles.addressCardDefault]}>
+          <View key={addr.id} style={[styles.addressCard, addr.is_default && styles.addressCardDefault]}>
             <View style={styles.addressCardTop}>
               <View style={styles.labelRow}>
-                <Ionicons name="location" size={16} color={addr.isDefault ? Colors.primary : Colors.textMuted} />
+                <Ionicons name="location" size={16} color={addr.is_default ? Colors.primary : Colors.textMuted} />
                 <Text style={styles.addressLabel}>{addr.label}</Text>
-                {addr.isDefault && (
+                {addr.is_default && (
                   <View style={styles.defaultBadge}>
                     <Text style={styles.defaultBadgeText}>Default</Text>
                   </View>
@@ -81,13 +106,13 @@ export default function AddressesScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.addressName}>{addr.fullName}</Text>
-            <Text style={styles.addressText}>{addr.street}</Text>
-            <Text style={styles.addressText}>{addr.city}, {addr.state}</Text>
-            <Text style={styles.addressText}>{addr.country} · {addr.postalCode}</Text>
-            <Text style={styles.addressPhone}>{addr.phone}</Text>
+            <Text style={styles.addressName}>{addr.full_name}</Text>
+            <Text style={styles.addressText}>{addr.street_address}</Text>
+            <Text style={styles.addressText}>{addr.city}, {addr.state}, {addr.country}</Text>
+            <Text style={styles.addressText}>{addr.postal_code || ''}</Text>
+            <Text style={styles.addressPhone}>📞 {addr.phone}</Text>
 
-            {!addr.isDefault && (
+            {!addr.is_default && (
               <TouchableOpacity style={styles.makeDefaultBtn} onPress={() => makeDefault(addr.id)}>
                 <Text style={styles.makeDefaultText}>Make Default</Text>
               </TouchableOpacity>
@@ -120,13 +145,13 @@ export default function AddressesScreen() {
               <TextInput style={styles.input} placeholder="e.g. Office, Home 2" value={newAddress.label} onChangeText={t => setNewAddress({...newAddress, label: t})} />
 
               <Text style={styles.fieldLabel}>FULL NAME *</Text>
-              <TextInput style={styles.input} value={newAddress.fullName} onChangeText={t => setNewAddress({...newAddress, fullName: t})} />
+              <TextInput style={styles.input} value={newAddress.full_name} onChangeText={t => setNewAddress({...newAddress, full_name: t})} />
 
               <Text style={styles.fieldLabel}>STREET ADDRESS *</Text>
-              <TextInput style={styles.input} placeholder="House number and street name" value={newAddress.street} onChangeText={t => setNewAddress({...newAddress, street: t})} />
+              <TextInput style={styles.input} placeholder="Street Address" value={newAddress.street_address} onChangeText={t => setNewAddress({...newAddress, street_address: t})} />
 
               <Text style={styles.fieldLabel}>PHONE NUMBER</Text>
-              <TextInput style={styles.input} keyboardType="phone-pad" value={newAddress.phone} onChangeText={t => setNewAddress({...newAddress, phone: t})} />
+              <TextInput style={styles.input} placeholder="Phone Number" keyboardType="phone-pad" value={newAddress.phone} onChangeText={t => setNewAddress({...newAddress, phone: t})} />
 
               <View style={styles.row}>
                 <View style={styles.halfWrap}>
@@ -146,7 +171,7 @@ export default function AddressesScreen() {
                 </View>
                 <View style={styles.halfWrap}>
                   <Text style={styles.fieldLabel}>POSTAL CODE</Text>
-                  <TextInput style={styles.input} value={newAddress.postalCode} onChangeText={t => setNewAddress({...newAddress, postalCode: t})} />
+                  <TextInput style={styles.input} value={newAddress.postal_code} onChangeText={t => setNewAddress({...newAddress, postal_code: t})} />
                 </View>
               </View>
 

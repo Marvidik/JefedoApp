@@ -7,6 +7,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Colors from '../../constants/Colors';
+import { completePasswordReset } from '../../services/authService';
 
 export default function ResetPasswordScreen() {
   const { email, otp } = useLocalSearchParams<{ email: string; otp: string }>();
@@ -16,7 +17,7 @@ export default function ResetPasswordScreen() {
   const [showCf, setShowCf] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleReset = () => {
+  const handleReset = async () => {
     if (!password || !confirm) {
       Alert.alert('Missing Fields', 'Please fill in both fields.');
       return;
@@ -30,13 +31,16 @@ export default function ResetPasswordScreen() {
       return;
     }
     setLoading(true);
-    // TODO: POST { email, otp, newPassword: password } to backend
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await completePasswordReset({ email, otp, new_password: password });
       Alert.alert('Password Reset!', 'Your password has been updated. Please log in.', [
         { text: 'Sign In', onPress: () => router.replace('/(auth)/login') },
       ]);
-    }, 1200);
+    } catch (err: any) {
+      Alert.alert('Error', err.detail || 'Failed to reset password. The OTP might be invalid or expired.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

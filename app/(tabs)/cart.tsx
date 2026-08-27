@@ -1,47 +1,29 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, TextInput, Dimensions, KeyboardAvoidingView, Platform } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, TextInput, Platform, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../../constants/Colors';
 import { router } from 'expo-router';
-
-const { width, height } = Dimensions.get('window');
-
-const INITIAL_CART = [
-  { id: '1', name: 'Bix Bag Limited Edition 229', colorVariant: 'Brown', price: 67, qty: 1, image: require('../../assets/onboarding3.jpg'), color: '#d4a373' },
-  { id: '2', name: 'BoxHeadphone 132', colorVariant: 'Brown', price: 26, qty: 1, image: require('../../assets/onboarding1.jpg'), color: '#a2d2ff' },
-  { id: '3', name: 'BoxHeadphone 345', colorVariant: 'Brown', price: 32, qty: 1, image: require('../../assets/onboarding2.jpg'), color: '#ffb703' },
-];
+import { useCart } from '../../context/CartContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function CartScreen() {
-  const [cartItems, setCartItems] = useState(INITIAL_CART);
-  const [selectedItems, setSelectedItems] = useState<string[]>(['1', '2']);
+  const { cartItems, updateQty, removeFromCart, cartTotal } = useCart();
+  const { isLoggedIn } = useAuth();
 
-  const toggleSelect = (id: string) => {
-    if (selectedItems.includes(id)) {
-      setSelectedItems(selectedItems.filter(i => i !== id));
-    } else {
-      setSelectedItems([...selectedItems, id]);
+  const handleCheckout = () => {
+    if (!isLoggedIn) {
+      Alert.alert('Login Required', 'Please log in to proceed to checkout.', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Login', onPress: () => router.push('/(auth)/login') },
+      ]);
+      return;
     }
+    router.push('/checkout');
   };
 
-  const increaseQty = (id: string) => {
-    setCartItems(items => items.map(item => item.id === id ? { ...item, qty: item.qty + 1 } : item));
-  };
-
-  const decreaseQty = (id: string) => {
-    setCartItems(items => items.map(item => item.id === id && item.qty > 1 ? { ...item, qty: item.qty - 1 } : item));
-  };
-
-  const removeItem = (id: string) => {
-    setCartItems(items => items.filter(item => item.id !== id));
-    setSelectedItems(selectedItems.filter(i => i !== id));
-  };
-
-  const selectedCartItems = cartItems.filter(item => selectedItems.includes(item.id));
-  const subtotal = selectedCartItems.reduce((acc, item) => acc + (item.price * item.qty), 0);
-  const shipping = selectedCartItems.length > 0 ? 6 : 0; 
-  const total = subtotal + shipping;
+  const subtotal = cartTotal;
+  const total = subtotal;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -57,48 +39,54 @@ export default function CartScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {cartItems.map((item) => (
-          <View key={item.id} style={styles.cartItem}>
-            <TouchableOpacity style={styles.checkboxWrap} onPress={() => toggleSelect(item.id)}>
-              <View style={[styles.checkbox, selectedItems.includes(item.id) && styles.checkboxActive]}>
-                {selectedItems.includes(item.id) && <Ionicons name="checkmark" size={14} color={Colors.white} />}
-              </View>
+        {cartItems.length === 0 ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 80 }}>
+            <Ionicons name="bag-outline" size={64} color={Colors.borderLight} />
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary, marginTop: 16 }}>Your cart is empty</Text>
+            <Text style={{ fontSize: 14, color: Colors.textMuted, marginTop: 8, marginBottom: 24 }}>Browse products and add them to your cart</Text>
+            <TouchableOpacity style={{ backgroundColor: Colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24 }} onPress={() => router.push('/(tabs)')}>
+              <Text style={{ color: Colors.white, fontWeight: 'bold', fontSize: 15 }}>Shop Now</Text>
             </TouchableOpacity>
-
-            <View style={[styles.itemImageContainer, { backgroundColor: item.color }]}>
-              <Image source={item.image} style={styles.itemImage} resizeMode="cover" />
-            </View>
-            
-            <View style={styles.itemDetails}>
-              <Text style={styles.itemName} numberOfLines={1}>{item.name}</Text>
-              <Text style={styles.itemColor}>Color: {item.colorVariant}</Text>
-              
-              <View style={styles.qtyControls}>
-                <TouchableOpacity style={styles.qtyBtn} onPress={() => decreaseQty(item.id)}>
-                  <Ionicons name="remove" size={16} color={Colors.textPrimary} />
-                </TouchableOpacity>
-                <Text style={styles.qtyText}>{item.qty}</Text>
-                <TouchableOpacity style={styles.qtyBtn} onPress={() => increaseQty(item.id)}>
-                  <Ionicons name="add" size={16} color={Colors.textPrimary} />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.rightActions}>
-              <TouchableOpacity onPress={() => removeItem(item.id)} style={styles.deleteBtn}>
-                <Ionicons name="trash-outline" size={16} color={Colors.danger} />
-              </TouchableOpacity>
-              <Text style={styles.itemPrice}>₦{(item.price * item.qty).toLocaleString()}</Text>
-            </View>
           </View>
-        ))}
+        ) : (
+          cartItems.map((item) => (
+            <View key={item.id} style={styles.cartItem}>
+              <View style={styles.itemImageContainer}>
+                <Image
+                  source={item.image ? { uri: item.image } : require('../../assets/onboarding1.jpg')}
+                  style={styles.itemImage}
+                  resizeMode="cover"
+                />
+              </View>
+
+              <View style={styles.itemDetails}>
+                <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
+                <Text style={styles.itemPrice}>₦{(item.price * item.qty).toLocaleString()}</Text>
+
+                <View style={styles.qtyControls}>
+                  <TouchableOpacity style={styles.qtyBtn} onPress={() => updateQty(item.id, item.qty - 1)}>
+                    <Ionicons name="remove" size={16} color={Colors.textPrimary} />
+                  </TouchableOpacity>
+                  <Text style={styles.qtyText}>{item.qty}</Text>
+                  <TouchableOpacity style={styles.qtyBtn} onPress={() => updateQty(item.id, item.qty + 1)}>
+                    <Ionicons name="add" size={16} color={Colors.textPrimary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <TouchableOpacity onPress={() => removeFromCart(item.id)} style={styles.deleteBtn}>
+                <Ionicons name="trash-outline" size={20} color={Colors.danger} />
+              </TouchableOpacity>
+            </View>
+          ))
+        )}
       </ScrollView>
 
       {/* Bottom Sheet Summary Overlay */}
       <View style={styles.bottomSheet}>
         <View style={styles.dragHandle} />
-        
-        <View style={styles.promoWrap}>
+
+        {/* <View style={styles.promoWrap}>
           <Ionicons name="pricetag-outline" size={20} color={Colors.textMuted} style={styles.promoIcon} />
           <TextInput 
             style={styles.promoInput}
@@ -106,7 +94,7 @@ export default function CartScreen() {
             placeholderTextColor={Colors.textMuted}
           />
           <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
-        </View>
+        </View> */}
 
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Subtotal</Text>
@@ -114,7 +102,7 @@ export default function CartScreen() {
         </View>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Shipping</Text>
-          <Text style={styles.summaryValue}>₦{shipping.toLocaleString()}</Text>
+          <Text style={styles.summaryValue}>Calculated by seller</Text>
         </View>
 
         <View style={styles.divider} />
@@ -124,7 +112,7 @@ export default function CartScreen() {
           <Text style={styles.totalValue}>₦{total.toLocaleString()}</Text>
         </View>
 
-        <TouchableOpacity style={styles.checkoutBtn} disabled={selectedItems.length === 0} onPress={() => router.push('/checkout')}>
+        <TouchableOpacity style={[styles.checkoutBtn, cartItems.length === 0 && { opacity: 0.5 }]} disabled={cartItems.length === 0} onPress={handleCheckout}>
           <Text style={styles.checkoutBtnText}>Checkout</Text>
         </TouchableOpacity>
       </View>

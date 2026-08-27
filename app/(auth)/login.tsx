@@ -12,6 +12,8 @@ import {
   Alert,
 } from 'react-native';
 import { router } from 'expo-router';
+import { login } from '../../services/authService';
+import { useAuth } from '../../context/AuthContext';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Colors from '../../constants/Colors';
@@ -20,28 +22,35 @@ const MailIcon = () => <Text style={styles.icon}>✉️</Text>;
 const LockIcon = () => <Text style={styles.icon}>🔒</Text>;
 
 export default function LoginScreen() {
+  const { refreshUser } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email || !password) {
       Alert.alert('Missing Fields', 'Please enter your email and password.');
       return;
     }
     setLoading(true);
 
-    // TODO: POST { email, password } to backend
-    // On success → navigate to OTP verification
-    setTimeout(() => {
+    try {
+      const res = await login({ email, password });
+      if ('two_factor_required' in res && res.two_factor_required) {
+        router.push({
+          pathname: '/(auth)/verify-login',
+          params: { email },
+        });
+      } else {
+        await refreshUser();
+        router.replace('/(tabs)');
+      }
+    } catch (err: any) {
+      Alert.alert('Login Failed', err.detail || err.message || 'Invalid credentials');
+    } finally {
       setLoading(false);
-      // ── OTP verification is AFTER login ──
-      router.push({
-        pathname: '/(auth)/verify-login',
-        params: { email },
-      });
-    }, 1200);
+    }
   };
 
   return (

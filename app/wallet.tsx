@@ -1,18 +1,109 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ActivityIndicator, Alert, TextInput, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Colors from '../constants/Colors';
+import { getWallet, initiateFunding, getTransactions } from '../services/walletService';
+import { useAuth } from '../context/AuthContext';
+import { useRequireAuth } from '../hooks/useRequireAuth';
+import { WebView } from 'react-native-webview';
 
 const { width } = Dimensions.get('window');
 
-const RECENT_TRANSACTIONS = [
-  { id: '1', title: 'Payment for Shoes', type: 'debit', amount: '-$120.00', date: 'Today, 10:30 AM', icon: 'cart' },
-  { id: '2', title: 'Top up wallet', type: 'credit', amount: '+$500.00', date: 'Yesterday, 02:15 PM', icon: 'wallet' },
-];
-
 export default function WalletScreen() {
+  useRequireAuth();
+  const { user } = useAuth();
+  
+  const [wallet, setWallet] = useState<any>(null);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [topUpModalVisible, setTopUpModalVisible] = useState(false);
+  const [topUpAmount, setTopUpAmount] = useState('');
+  const [fundingLoading, setFundingLoading] = useState(false);
+  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchWalletData();
+  }, []);
+
+  const fetchWalletData = async () => {
+    try {
+      setLoading(true);
+      const [walletData, txs] = await Promise.all([
+        getWallet(),
+        getTransactions()
+      ]);
+      setWallet(walletData);
+      setTransactions(txs.slice(0, 3)); // Only show recent 3
+    } catch (err: any) {
+      console.error(err);
+      // It might be a 404 if wallet is not created yet, etc.
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTopUp = async () => {
+    if (!topUpAmount || isNaN(Number(topUpAmount)) || Number(topUpAmount) <= 0) {
+      Alert.alert('Error', 'Please enter a valid amount');
+      return;
+    }
+    
+    setFundingLoading(true);
+    try {
+      const res = await initiateFunding(Number(topUpAmount));
+      if (res.payment_url) {
+        setPaymentUrl(res.payment_url);
+      } else {
+        Alert.alert('Error', 'Failed to generate payment link');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to initiate funding');
+    } finally {
+      setFundingLoading(false);
+    }
+  };
+
+  const handlePaymentNavigation = (navState: any) => {
+    if (navState.url.includes('callback') || navState.url.includes('verify')) {
+      // For simplicity, just close webview and refresh wallet data when it redirects
+      setPaymentUrl(null);
+      setTopUpModalVisible(false);
+      setTopUpAmount('');
+      fetchWalletData();
+      Alert.alert('Success', 'Payment process completed. Your wallet balance should update shortly.');
+    }
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]} edges={['top']}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </SafeAreaView>
+    );
+  }
+
+  if (paymentUrl) {
+    return (
+      <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => setPaymentUrl(null)}>
+            <Ionicons name="close" size={24} color={Colors.white} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Fund Wallet</Text>
+          <View style={{ width: 32 }} />
+        </View>
+        <WebView 
+          source={{ uri: paymentUrl }} 
+          style={{ flex: 1 }}
+          onNavigationStateChange={handlePaymentNavigation}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
@@ -30,16 +121,12 @@ export default function WalletScreen() {
         {/* Balance Card */}
         <View style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>Total Balance</Text>
-          <Text style={styles.balanceAmount}>$3,851.59</Text>
+          <Text style={styles.balanceAmount}>₦{Number(wallet?.balance || 0).toLocaleString()}</Text>
           
           <View style={styles.cardInfo}>
             <View>
-              <Text style={styles.cardLabel}>Card Holder</Text>
-              <Text style={styles.cardValue}>Magdalena</Text>
-            </View>
-            <View>
-              <Text style={styles.cardLabel}>Expires</Text>
-              <Text style={styles.cardValue}>12/24</Text>
+              <Text style={styles.cardLabel}>Account Holder</Text>
+              <Text style={styles.cardValue}>{user?.first_name} {user?.last_name}</Text>
             </View>
             <View style={styles.logoWrap}>
               <Text style={styles.logoText}>J</Text>
@@ -49,17 +136,11 @@ export default function WalletScreen() {
 
         {/* Action Row - Top Up and Add Card */}
         <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.actionBtn}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => setTopUpModalVisible(true)}>
             <View style={[styles.actionIconWrap, { backgroundColor: '#dcfce7' }]}>
               <Ionicons name="add" size={24} color="#16a34a" />
             </View>
             <Text style={styles.actionText}>Top Up Balance</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn}>
-            <View style={[styles.actionIconWrap, { backgroundColor: '#e0f2fe' }]}>
-              <Ionicons name="card-outline" size={24} color="#0284c7" />
-            </View>
-            <Text style={styles.actionText}>Use a New Card</Text>
           </TouchableOpacity>
         </View>
 
@@ -72,30 +153,59 @@ export default function WalletScreen() {
             </TouchableOpacity>
           </View>
 
-          {RECENT_TRANSACTIONS.map((item) => (
-            <View key={item.id} style={styles.transactionCard}>
-              <View style={styles.txLeft}>
-                <View style={styles.txIconWrap}>
-                  <Ionicons name={item.icon as any} size={20} color={Colors.textSecondary} />
+          {transactions.length === 0 ? (
+            <Text style={{ textAlign: 'center', color: Colors.textMuted, marginTop: 20 }}>No recent transactions</Text>
+          ) : (
+            transactions.map((item) => (
+              <View key={item.id} style={styles.transactionCard}>
+                <View style={styles.txLeft}>
+                  <View style={styles.txIconWrap}>
+                    <Ionicons name={item.transaction_type === 'credit' ? 'arrow-down' : 'arrow-up'} size={20} color={Colors.textSecondary} />
+                  </View>
+                  <View>
+                    <Text style={styles.txTitle}>{item.description || item.transaction_type}</Text>
+                    <Text style={styles.txDate}>{new Date(item.created_at).toLocaleDateString()}</Text>
+                  </View>
                 </View>
-                <View>
-                  <Text style={styles.txTitle}>{item.title}</Text>
-                  <Text style={styles.txDate}>{item.date}</Text>
-                </View>
+                <Text style={[styles.txAmount, { color: item.transaction_type === 'credit' ? '#16a34a' : Colors.danger }]}>
+                  {item.transaction_type === 'credit' ? '+' : '-'}₦{Number(item.amount).toLocaleString()}
+                </Text>
               </View>
-              <Text style={[styles.txAmount, { color: item.type === 'credit' ? '#16a34a' : Colors.danger }]}>
-                {item.amount}
-              </Text>
-            </View>
-          ))}
+            ))
+          )}
         </View>
       </View>
+
+      {/* Top Up Modal */}
+      <Modal visible={topUpModalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Fund Wallet</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Enter amount (₦)"
+              keyboardType="numeric"
+              value={topUpAmount}
+              onChangeText={setTopUpAmount}
+            />
+            <View style={styles.modalBtns}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setTopUpModalVisible(false)} disabled={fundingLoading}>
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.fundBtn} onPress={handleTopUp} disabled={fundingLoading}>
+                {fundingLoading ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.fundBtnText}>Fund Now</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f172a' }, // Dark theme for wallet
+  container: { flex: 1, backgroundColor: '#0f172a' }, 
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 15 },
   backBtn: { padding: 4 },
   headerTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.white },
@@ -125,4 +235,14 @@ const styles = StyleSheet.create({
   txTitle: { fontSize: 15, fontWeight: '600', color: Colors.textPrimary, marginBottom: 4 },
   txDate: { fontSize: 12, color: Colors.textMuted },
   txAmount: { fontSize: 15, fontWeight: 'bold' },
+  
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
+  modalContent: { backgroundColor: Colors.white, borderRadius: 12, padding: 20 },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16, color: Colors.textPrimary },
+  input: { borderWidth: 1, borderColor: Colors.borderLight, borderRadius: 8, padding: 12, marginBottom: 20, fontSize: 16 },
+  modalBtns: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12 },
+  cancelBtn: { paddingVertical: 10, paddingHorizontal: 16 },
+  cancelBtnText: { color: Colors.textMuted, fontWeight: '600' },
+  fundBtn: { backgroundColor: Colors.primary, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8 },
+  fundBtnText: { color: Colors.white, fontWeight: 'bold' }
 });

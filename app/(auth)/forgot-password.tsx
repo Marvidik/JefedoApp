@@ -13,12 +13,13 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Colors from '../../constants/Colors';
+import { requestPasswordReset } from '../../services/authService';
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!email) {
       Alert.alert('Email Required', 'Please enter your email address.');
       return;
@@ -29,11 +30,14 @@ export default function ForgotPasswordScreen() {
       return;
     }
     setLoading(true);
-    // TODO: POST { email } to backend — backend sends OTP to email
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      await requestPasswordReset({ email });
       router.push({ pathname: '/(auth)/forgot-otp', params: { email } });
-    }, 1200);
+    } catch (err: any) {
+      Alert.alert('Error', err.detail || 'Failed to send OTP. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
