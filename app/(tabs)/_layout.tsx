@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { View, StyleSheet, Platform, Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../../constants/Colors';
 import { useCart } from '../../context/CartContext';
@@ -7,13 +8,15 @@ import { useCart } from '../../context/CartContext';
 export default function TabLayout() {
   const { cartItems } = useCart();
   const cartCount = cartItems.reduce((sum, item) => sum + item.qty, 0);
+  const insets = useSafeAreaInsets();
+  const bottomOffset = Platform.OS === 'android' ? insets.bottom + 8 : 0;
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: [styles.tabBar, { bottom: bottomOffset }],
         tabBarActiveTintColor: Colors.primary,
         tabBarInactiveTintColor: Colors.textMuted,
       }}
@@ -87,7 +90,7 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   tabBar: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 0 : 0,
+    bottom: 0,
     left: 10,
     right: 10,
     elevation: 0,

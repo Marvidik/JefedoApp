@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Image, Dimensions, TextInput, ActivityIndicator
+  Image, Dimensions, TextInput, ActivityIndicator, RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,6 +18,7 @@ export default function ServicesScreen() {
   const [categories, setCategories] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Debounce search
   useEffect(() => {
@@ -51,6 +52,12 @@ export default function ServicesScreen() {
       setLoading(false);
     }
   };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchServices();
+    setRefreshing(false);
+  }, [activeCategory, searchDebounce]);
 
   const goToDetails = (slug: string) => {
     router.push(`/service/${slug}`);
@@ -113,7 +120,13 @@ export default function ServicesScreen() {
         ))}
       </ScrollView>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />
+        }
+      >
         {loading ? (
           <View style={styles.centeredContent}>
             <ActivityIndicator size="large" color={Colors.primary} />

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -92,6 +92,38 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         )}
 
+        {/* ── Sell on Jefedo Hero Banner ── */}
+        <TouchableOpacity
+          activeOpacity={0.88}
+          onPress={() => Linking.openURL('https://www.jefedo.com/auth')}
+          style={styles.sellBannerWrapper}
+        >
+          <View
+            style={[styles.sellBanner, { backgroundColor: '#E8001C' }]}
+          >
+            {/* Decorative blobs */}
+            <View style={styles.blobTopRight} />
+            <View style={styles.blobBottomLeft} />
+
+            <View style={styles.sellBannerContent}>
+              <View style={styles.sellIconCircle}>
+                <Ionicons name="storefront" size={28} color="#E8001C" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sellBannerEyebrow}>🚀 START SELLING TODAY</Text>
+                <Text style={styles.sellBannerTitle}>Sell on Jefedo</Text>
+                <Text style={styles.sellBannerSub}>
+                  Reach thousands of buyers — list your products and grow your business online.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.sellBannerBtn}>
+              <Text style={styles.sellBannerBtnText}>Open Seller Dashboard →</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+
         <Text style={styles.sectionTitle}>General</Text>
         <View style={styles.sectionContainer}>
           <MenuItem icon="person-outline" title="Edit Profile" onPress={() => requireLogin('/edit-profile')} />
@@ -114,7 +146,6 @@ export default function ProfileScreen() {
           <MenuItem icon="document-text-outline" title="Legal and Policies" onPress={() => Linking.openURL('https://www.jefedo.com/privacy-policy')} />
           <View style={styles.divider} />
           <MenuItem icon="help-circle-outline" title="Help & Support" onPress={() => Linking.openURL('https://www.jefedo.com/contact')} />
-          <MenuItem icon="document-text-outline" title="Sale On JEFEDO" onPress={() => Linking.openURL('https://www.jefedo.com/auth')} />
         </View>
 
         <View style={[styles.sectionContainer, { marginTop: 10 }]}>
@@ -155,4 +186,90 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: Colors.borderLight, marginLeft: 50 },
   badgeWrap: { backgroundColor: Colors.primary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 10, marginRight: 8, minWidth: 20, alignItems: 'center' },
   badgeText: { color: Colors.white, fontSize: 12, fontWeight: 'bold' },
+
+  // ── Sell on Jefedo Banner ──
+  sellBannerWrapper: {
+    marginBottom: 22,
+    borderRadius: 22,
+    shadowColor: '#E8001C',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+    elevation: 10,
+  },
+  sellBanner: {
+    borderRadius: 22,
+    padding: 20,
+    paddingBottom: 18,
+    overflow: 'hidden',
+  },
+  blobTopRight: {
+    position: 'absolute',
+    top: -30,
+    right: -30,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  blobBottomLeft: {
+    position: 'absolute',
+    bottom: -20,
+    left: -20,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+  },
+  sellBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 14,
+    marginBottom: 16,
+  },
+  sellIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  sellBannerEyebrow: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.85)',
+    letterSpacing: 1.2,
+    marginBottom: 4,
+  },
+  sellBannerTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 0.3,
+    marginBottom: 6,
+  },
+  sellBannerSub: {
+    fontSize: 12.5,
+    color: 'rgba(255,255,255,0.88)',
+    lineHeight: 18,
+  },
+  sellBannerBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#fff',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 50,
+  },
+  sellBannerBtnText: {
+    color: '#E8001C',
+    fontWeight: '700',
+    fontSize: 13,
+    letterSpacing: 0.2,
+  },
 });

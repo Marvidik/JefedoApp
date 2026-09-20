@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Image, FlatList, Dimensions, ActivityIndicator, TextInput
+  Image, FlatList, Dimensions, ActivityIndicator, TextInput, RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +19,7 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchDebounce, setSearchDebounce] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   const { addToCart, cartItems } = useCart();
 
@@ -56,6 +57,12 @@ export default function HomeScreen() {
     }
   };
 
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchProducts();
+    setRefreshing(false);
+  }, [activeCategory, searchDebounce]);
+
   const goToDetails = (slug: string) => router.push(`/product/${slug}`);
 
   const handleAddToCart = (item: any) => {
@@ -90,8 +97,8 @@ export default function HomeScreen() {
           <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
           <View style={styles.priceRow}>
             <Text style={styles.price}>₦{Number(item.price).toLocaleString()}</Text>
-            {item.original_price && (
-              <Text style={styles.oldPrice}>₦{Number(item.original_price).toLocaleString()}</Text>
+            {Number(item.original) > 0 && (
+              <Text style={styles.oldPrice}>₦{Number(item.original).toLocaleString()}</Text>
             )}
             {item.stock_qty != null && (
               <Text style={styles.stock}>{item.stock_qty} left</Text>
@@ -180,7 +187,13 @@ export default function HomeScreen() {
         ))}
       </ScrollView>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.primary]} />
+        }
+      >
         {loading ? (
           <View style={styles.centeredContent}>
             <ActivityIndicator size="large" color={Colors.primary} />
