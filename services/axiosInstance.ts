@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 // IMPORTANT: On physical devices, 127.0.0.1 and localhost point to the device itself.
 // Use your PC's local network IP (e.g. 192.168.x.x) when testing on a real device or Expo Go.
 // Use 10.0.2.2 for Android Emulator.
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://172.20.10.7:8000";
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL || "https://backend.jefedo.com";
 
 console.log("🌐 [API BASE URL]:", BASE_URL);
 

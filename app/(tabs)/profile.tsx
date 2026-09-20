@@ -114,6 +114,7 @@ export default function ProfileScreen() {
           <MenuItem icon="document-text-outline" title="Legal and Policies" onPress={() => Linking.openURL('https://www.jefedo.com/privacy-policy')} />
           <View style={styles.divider} />
           <MenuItem icon="help-circle-outline" title="Help & Support" onPress={() => Linking.openURL('https://www.jefedo.com/contact')} />
+          <MenuItem icon="document-text-outline" title="Sale On JEFEDO" onPress={() => Linking.openURL('https://www.jefedo.com/auth')} />
         </View>
 
         <View style={[styles.sectionContainer, { marginTop: 10 }]}>

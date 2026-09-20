@@ -3,12 +3,10 @@
     "name": "Jefedo",
     "slug": "JefedoApp",
     "version": "1.0.0",
-    "sdkVersion": "54.0.0",
     "scheme": "jefedo",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.jefedo.app"
@@ -25,7 +23,9 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      "expo-secure-store",
+      "expo-status-bar"
     ],
     "extra": {
       "router": {},

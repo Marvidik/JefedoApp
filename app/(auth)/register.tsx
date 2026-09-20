@@ -242,6 +242,16 @@ export default function RegisterScreen() {
               <Text style={styles.loginHighlight}>Sign In</Text>
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.replace('/(auth)/login')}
+            style={styles.loginLink}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.loginText}>
+              Want to Sale On JEFEDO?{' '}
+              <Text style={styles.loginHighlight}>Register</Text>
+            </Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
