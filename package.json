@@ -32,5 +32,10 @@
     "ios": "expo start --ios",
     "web": "expo start --web"
   },
+  "overrides": {
+    "react-native-reanimated": {
+      "react-native-worklets": "$react-native-worklets"
+    }
+  },
   "private": true
 }
