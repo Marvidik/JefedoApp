@@ -28,22 +28,22 @@ export default function RegisterScreen() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [password1, setPassword1] = useState('');
+  const [password2, setPassword2] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
-    if (!firstName || !lastName || !email || !password || !confirmPassword) {
+    if (!firstName || !lastName || !email || !password1 || !password2) {
       Alert.alert('Missing Fields', 'Please fill all required fields.');
       return;
     }
-    if (password !== confirmPassword) {
+    if (password1 !== password2) {
       Alert.alert('Password Mismatch', 'Passwords do not match.');
       return;
     }
-    if (password.length < 6) {
+    if (password1.length < 6) {
       Alert.alert('Weak Password', 'Password must be at least 6 characters.');
       return;
     }
@@ -55,7 +55,8 @@ export default function RegisterScreen() {
         last_name: lastName,
         email,
         phone_number: phone,
-        password,
+        password1,
+        password2,
       });
       router.replace('/(auth)/login');
     } catch (err: any) {
@@ -175,8 +176,8 @@ export default function RegisterScreen() {
               placeholder="••••••••"
               placeholderTextColor={Colors.textMuted}
               secureTextEntry={!showPassword}
-              value={password}
-              onChangeText={setPassword}
+              value={password1}
+              onChangeText={setPassword1}
             />
             <TouchableOpacity
               onPress={() => setShowPassword(!showPassword)}
@@ -198,8 +199,8 @@ export default function RegisterScreen() {
               placeholder="••••••••"
               placeholderTextColor={Colors.textMuted}
               secureTextEntry={!showConfirm}
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
+              value={password2}
+              onChangeText={setPassword2}
             />
             <TouchableOpacity
               onPress={() => setShowConfirm(!showConfirm)}

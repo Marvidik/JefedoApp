@@ -23,7 +23,7 @@ export default function ProfileScreen() {
             } catch {}
             setIsLoggedIn(false);
             setUser(null);
-            router.replace('/(auth)/login');
+            router.replace('/(tabs)');
           },
         },
       ]);

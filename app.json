@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "scheme": "jefedo",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/app-icon.png",
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
@@ -14,7 +14,7 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#EE1217",
-        "foregroundImage": "./assets/icon.png"
+        "foregroundImage": "./assets/app-icon.png"
       },
       "package": "com.jefedo.app"
     },
@@ -25,7 +25,15 @@
       "expo-router",
       "expo-font",
       "expo-secure-store",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/logo.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#EE1217"
+        }
+      ]
     ],
     "extra": {
       "router": {},
@@ -35,3 +43,4 @@
     }
   }
 }
+
