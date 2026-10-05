@@ -5,13 +5,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import Colors from '../constants/Colors';
 import { useCart } from '../context/CartContext';
-import { useRequireAuth } from '../lib/useRequireAuth';
 import { checkoutProduct } from '../services/checkoutService';
 
 const FALLBACK_IMAGE = require('../assets/onboarding3.jpg');
 
 export default function ReviewOrderScreen() {
-  const isLoggedIn = useRequireAuth();
   const { cartItems, cartTotal, clearCart } = useCart();
   const params = useLocalSearchParams<{ checkoutData?: string }>();
   const [agreed, setAgreed] = useState(false);
@@ -60,8 +58,6 @@ export default function ReviewOrderScreen() {
       setLoading(false);
     }
   };
-
-  if (!isLoggedIn) return null;
 
   const paymentMethodLabel = checkoutData?.payment_method === 'wallet' ? '👛 Wallet' : '💳 Paystack';
   const shippingAddress = checkoutData
@@ -172,8 +168,8 @@ export default function ReviewOrderScreen() {
 
         {/* Agreement */}
         <View style={styles.agreementRow}>
-          <TouchableOpacity onPress={() => setAgreed(!agreed)} style={styles.checkbox}>
-            {agreed && <Ionicons name="checkmark" size={16} color={Colors.primary} />}
+          <TouchableOpacity onPress={() => setAgreed(!agreed)} style={[styles.checkbox, agreed && styles.activeCheckbox]}>
+            {agreed && <Ionicons name="checkmark" size={18} color={Colors.white} />}
           </TouchableOpacity>
           <Text style={styles.agreementText}>
             I agree to the <Text style={styles.linkText}>Refund Policy</Text> and <Text style={styles.linkText}>Privacy Policy</Text>. I confirm this order is correct.
@@ -184,6 +180,12 @@ export default function ReviewOrderScreen() {
         <View style={styles.actionButtons}>
           <TouchableOpacity style={styles.backButtonAction} onPress={() => router.back()}>
             <Text style={styles.backButtonText}>← Back</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.callButtonAction} 
+            onPress={() => Linking.openURL('tel:+2347064957209')}
+          >
+            <Ionicons name="call" size={20} color={Colors.white} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.placeOrderBtn, (!agreed || loading) && { opacity: 0.5 }]}
@@ -233,11 +235,13 @@ const styles = StyleSheet.create({
   paymentMethods: { flexDirection: 'row', justifyContent: 'center', gap: 16 },
   payMethod: { fontSize: 12, fontWeight: 'bold', color: Colors.textPrimary },
   agreementRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 24, paddingHorizontal: 8 },
-  checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center', marginRight: 12, marginTop: 2 },
+  checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 2, borderColor: Colors.primary, justifyContent: 'center', alignItems: 'center', marginRight: 12, marginTop: 2 },
+  activeCheckbox: { backgroundColor: Colors.primary },
   agreementText: { flex: 1, fontSize: 13, color: Colors.textSecondary, lineHeight: 20 },
   linkText: { color: Colors.primary, fontWeight: '600' },
   actionButtons: { flexDirection: 'row', gap: 12 },
   backButtonAction: { flex: 1, height: 50, borderRadius: 8, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: Colors.borderLight, backgroundColor: Colors.white },
+  callButtonAction: { width: 50, height: 50, borderRadius: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: '#10b981' },
   backButtonText: { color: Colors.textPrimary, fontSize: 16, fontWeight: '600' },
   placeOrderBtn: { flex: 2, height: 50, borderRadius: 8, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.primary },
   placeOrderText: { color: Colors.white, fontSize: 16, fontWeight: 'bold' },

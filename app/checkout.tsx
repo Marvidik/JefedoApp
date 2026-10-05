@@ -8,12 +8,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Colors from '../constants/Colors';
 import { useCart } from '../context/CartContext';
-import { useRequireAuth } from '../lib/useRequireAuth';
 import { useAuth } from '../context/AuthContext';
 import { getAddresses } from '../services/accountService';
+import { getWallet } from '../services/walletService';
 
 export default function CheckoutScreen() {
-  const isLoggedIn = useRequireAuth();
   const { user } = useAuth();
   const { cartItems, cartTotal } = useCart();
 
@@ -49,8 +48,13 @@ export default function CheckoutScreen() {
     }
   }, [user]);
 
-  const [paymentMethod, setPaymentMethod] = useState<'paystack' | 'wallet'>('paystack');
+  const [paymentMethod, setPaymentMethod] = useState<'paystack' | 'wallet'>('wallet');
   const [coupon, setCoupon] = useState('');
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+
+  useEffect(() => {
+    getWallet().then(w => setWalletBalance(Number(w.balance) || 0)).catch(() => {});
+  }, []);
 
   const [countries, setCountries] = useState<string[]>([]);
   const [states, setStates] = useState<string[]>([]);
@@ -93,6 +97,19 @@ export default function CheckoutScreen() {
     }
     if (cartItems.length === 0) {
       Alert.alert('Empty cart', 'Please add items to your cart first.');
+      return;
+    }
+
+    // Wallet balance check
+    if (paymentMethod === 'wallet' && walletBalance < cartTotal) {
+      Alert.alert(
+        'Insufficient Wallet Balance',
+        `Your wallet balance (₦${walletBalance.toLocaleString()}) is not enough for this order (₦${cartTotal.toLocaleString()}). Please fund your wallet first.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Fund Wallet', onPress: () => router.push('/wallet') },
+        ]
+      );
       return;
     }
 
@@ -141,8 +158,6 @@ export default function CheckoutScreen() {
       </View>
     </Modal>
   );
-
-  if (!isLoggedIn) return null;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -233,6 +248,19 @@ export default function CheckoutScreen() {
           <Text style={styles.cardTitle}>Payment Method</Text>
           <Text style={styles.cardSub}>Choose how you'd like to pay.</Text>
 
+          {/* Wallet first */}
+          <TouchableOpacity style={[styles.paymentOption, paymentMethod === 'wallet' && styles.paymentOptionActive]} onPress={() => setPaymentMethod('wallet')}>
+            <View style={styles.paymentOptionLeft}>
+              <View style={[styles.radio, paymentMethod === 'wallet' && styles.radioActive]}>
+                {paymentMethod === 'wallet' && <View style={styles.radioDot} />}
+              </View>
+              <View>
+                <Text style={styles.paymentOptionTitle}>👛 Pay with Wallet</Text>
+                <Text style={styles.paymentOptionDesc}>Balance: ₦{walletBalance.toLocaleString()}</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+
           <TouchableOpacity style={[styles.paymentOption, paymentMethod === 'paystack' && styles.paymentOptionActive]} onPress={() => setPaymentMethod('paystack')}>
             <View style={styles.paymentOptionLeft}>
               <View style={[styles.radio, paymentMethod === 'paystack' && styles.radioActive]}>
@@ -241,18 +269,6 @@ export default function CheckoutScreen() {
               <View>
                 <Text style={styles.paymentOptionTitle}>💳 Pay with Paystack</Text>
                 <Text style={styles.paymentOptionDesc}>Card, Bank Transfer, USSD & more</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.paymentOption, paymentMethod === 'wallet' && styles.paymentOptionActive]} onPress={() => setPaymentMethod('wallet')}>
-            <View style={styles.paymentOptionLeft}>
-              <View style={[styles.radio, paymentMethod === 'wallet' && styles.radioActive]}>
-                {paymentMethod === 'wallet' && <View style={styles.radioDot} />}
-              </View>
-              <View>
-                <Text style={styles.paymentOptionTitle}>👛 Pay with Wallet</Text>
-                <Text style={styles.paymentOptionDesc}>Use your Jefedo wallet balance</Text>
               </View>
             </View>
           </TouchableOpacity>

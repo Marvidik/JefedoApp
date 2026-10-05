@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, TextInput, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, TextInput, Platform, Alert, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '../../constants/Colors';
@@ -12,13 +12,6 @@ export default function CartScreen() {
   const { isLoggedIn } = useAuth();
 
   const handleCheckout = () => {
-    if (!isLoggedIn) {
-      Alert.alert('Login Required', 'Please log in to proceed to checkout.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Login', onPress: () => router.push('/(auth)/login') },
-      ]);
-      return;
-    }
     router.push('/checkout');
   };
 
@@ -112,9 +105,21 @@ export default function CartScreen() {
           <Text style={styles.totalValue}>₦{total.toLocaleString()}</Text>
         </View>
 
-        <TouchableOpacity style={[styles.checkoutBtn, cartItems.length === 0 && { opacity: 0.5 }]} disabled={cartItems.length === 0} onPress={handleCheckout}>
-          <Text style={styles.checkoutBtnText}>Checkout</Text>
-        </TouchableOpacity>
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={styles.callBtn}
+            onPress={() => Linking.openURL('tel:+2347064957209')}
+          >
+            <Ionicons name="call" size={22} color={Colors.white} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.checkoutBtn, cartItems.length === 0 && { opacity: 0.5 }]}
+            disabled={cartItems.length === 0}
+            onPress={handleCheckout}
+          >
+            <Text style={styles.checkoutBtnText}>Checkout</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -141,7 +146,7 @@ const styles = StyleSheet.create({
   rightActions: { height: 80, justifyContent: 'space-between', alignItems: 'flex-end', paddingVertical: 4 },
   deleteBtn: { padding: 4 },
   itemPrice: { fontSize: 18, fontWeight: 'bold', color: Colors.textPrimary },
-  bottomSheet: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.white, borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingHorizontal: 24, paddingBottom: Platform.OS === 'ios' ? 90 : 70, paddingTop: 12, shadowColor: Colors.black, shadowOffset: { width: 0, height: -10 }, shadowOpacity: 0.08, shadowRadius: 20, elevation: 24 },
+  bottomSheet: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: Colors.white, borderTopLeftRadius: 32, borderTopRightRadius: 32, paddingHorizontal: 24, paddingBottom: Platform.OS === 'ios' ? 150 : 140, paddingTop: 12, shadowColor: Colors.black, shadowOffset: { width: 0, height: -10 }, shadowOpacity: 0.08, shadowRadius: 20, elevation: 24 },
   dragHandle: { width: 40, height: 4, backgroundColor: Colors.border, borderRadius: 2, alignSelf: 'center', marginBottom: 24 },
   promoWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface2, borderRadius: 12, paddingHorizontal: 16, height: 56, marginBottom: 24 },
   promoIcon: { marginRight: 12 },
@@ -152,6 +157,8 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: Colors.borderLight, marginVertical: 8, borderStyle: 'dashed' },
   totalLabel: { fontSize: 15, color: Colors.textSecondary },
   totalValue: { fontSize: 20, fontWeight: 'bold', color: Colors.textPrimary },
-  checkoutBtn: { backgroundColor: Colors.primary, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
+  actionRow: { flexDirection: 'row', gap: 12, marginTop: 24, alignItems: 'center' },
+  callBtn: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#10b981', justifyContent: 'center', alignItems: 'center' },
+  checkoutBtn: { flex: 1, backgroundColor: Colors.primary, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
   checkoutBtnText: { color: Colors.white, fontSize: 16, fontWeight: 'bold' },
 });
